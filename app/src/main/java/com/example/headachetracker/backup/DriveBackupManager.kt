@@ -1,6 +1,5 @@
 package com.example.headachetracker.backup
 
-import android.content.Context
 import com.example.headachetracker.data.local.HeadacheDao
 import com.example.headachetracker.data.local.HeadacheEntry
 import kotlinx.coroutines.Dispatchers
@@ -53,8 +52,4 @@ class DriveBackupManager @Inject constructor(
             dao.insert(entry)
         }
     }
-
-    // TODO: Implement Google Drive upload/download
-    // This will use Google Sign-In + Drive API to store the JSON
-    // in the app's hidden Drive app data folder
 }

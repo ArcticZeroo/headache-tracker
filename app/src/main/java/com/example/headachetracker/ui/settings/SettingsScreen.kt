@@ -1,9 +1,10 @@
 package com.example.headachetracker.ui.settings
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,31 +13,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
+    viewModel: SettingsViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
-    var autoBackupEnabled by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -45,44 +45,43 @@ fun SettingsScreen(
     ) {
         item {
             Text(
-                text = "Backup & Restore",
+                text = "Backup & Data",
                 style = MaterialTheme.typography.headlineSmall
             )
         }
 
+        // Auto-backup info
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Google Drive",
-                        style = MaterialTheme.typography.titleMedium
+                    Icon(
+                        Icons.Default.CloudDone,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Sign in to back up your data to Google Drive. Your data will persist across device wipes and transfers.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Auto Backup Enabled",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { /* TODO: Google Sign-In */ },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Backup, contentDescription = null)
-                        Spacer(modifier = Modifier.padding(4.dp))
-                        Text("Sign in with Google")
-                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Your headache data is automatically backed up to Google Drive via Android Auto Backup. It will be restored when you sign in to a new device with your Google account.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
                 }
             }
         }
 
+        // Manual export/import
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -92,56 +91,42 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Auto-backup",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Switch(
-                            checked = autoBackupEnabled,
-                            onCheckedChange = { autoBackupEnabled = it },
-                            enabled = false // Disabled until Google Sign-In is implemented
-                        )
-                    }
                     Text(
-                        text = "Automatically back up after each new entry",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "Manual Export",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Export your data as a JSON file you can save or share.",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val json = viewModel.exportData()
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/json"
+                                    putExtra(Intent.EXTRA_TEXT, json)
+                                    putExtra(Intent.EXTRA_SUBJECT, "Headache Tracker Export")
+                                }
+                                context.startActivity(
+                                    Intent.createChooser(intent, "Share export")
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        OutlinedButton(
-                            onClick = { /* TODO: Manual backup */ },
-                            modifier = Modifier.weight(1f),
-                            enabled = false
-                        ) {
-                            Icon(Icons.Default.CloudUpload, contentDescription = null)
-                            Spacer(modifier = Modifier.padding(4.dp))
-                            Text("Backup")
-                        }
-                        OutlinedButton(
-                            onClick = { /* TODO: Restore */ },
-                            modifier = Modifier.weight(1f),
-                            enabled = false
-                        ) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null)
-                            Spacer(modifier = Modifier.padding(4.dp))
-                            Text("Restore")
-                        }
+                        Icon(Icons.Default.Share, contentDescription = null)
+                        Spacer(modifier = Modifier.padding(4.dp))
+                        Text("Export & Share")
                     }
                 }
             }
         }
 
+        // Data sources (future)
         item {
             Text(
                 text = "Data Sources",
