@@ -82,7 +82,4 @@ dependencies {
 
     // WorkManager
     implementation(libs.work.runtime)
-
-    // Startup (required by Glance/WorkManager initialization)
-    implementation(libs.startup.runtime)
 }

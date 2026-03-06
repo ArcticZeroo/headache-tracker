@@ -12,7 +12,6 @@ lifecycle = "2.8.4"
 activity-compose = "1.9.1"
 core-ktx = "1.13.1"
 work = "2.9.1"
-startup = "1.1.1"
 
 [libraries]
 # Compose
@@ -48,9 +47,6 @@ glance-material3 = { group = "androidx.glance", name = "glance-material3", versi
 
 # WorkManager
 work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
-
-# Startup
-startup-runtime = { group = "androidx.startup", name = "startup-runtime", version.ref = "startup" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
