@@ -3,6 +3,7 @@ package com.example.headachetracker.ui.entry
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.headachetracker.data.local.HeadacheEntry
+import com.example.headachetracker.data.location.GeocodingProvider
 import com.example.headachetracker.data.location.LocationProvider
 import com.example.headachetracker.data.repository.HeadacheRepository
 import com.example.headachetracker.data.weather.WeatherRepository
@@ -19,6 +20,7 @@ data class EntryUiState(
     val timestamp: Long = System.currentTimeMillis(),
     val isEditing: Boolean = false,
     val entryId: Long? = null,
+    val isSaving: Boolean = false,
     val isSaved: Boolean = false
 )
 
@@ -26,6 +28,7 @@ data class EntryUiState(
 class EntryViewModel @Inject constructor(
     private val repository: HeadacheRepository,
     private val locationProvider: LocationProvider,
+    private val geocodingProvider: GeocodingProvider,
     private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
@@ -62,8 +65,13 @@ class EntryViewModel @Inject constructor(
         val state = _uiState.value
         val painLevel = state.painLevel ?: return
 
+        _uiState.value = _uiState.value.copy(isSaving = true)
+
         viewModelScope.launch {
             val location = locationProvider.getCurrentLocation()
+            val locationName = if (location != null) {
+                geocodingProvider.getLocationName(location.latitude, location.longitude)
+            } else null
 
             if (state.isEditing && state.entryId != null) {
                 repository.updateEntry(
@@ -73,7 +81,8 @@ class EntryViewModel @Inject constructor(
                         timestamp = state.timestamp,
                         notes = state.notes.ifBlank { null },
                         latitude = location?.latitude,
-                        longitude = location?.longitude
+                        longitude = location?.longitude,
+                        locationName = locationName
                     )
                 )
                 if (location != null) {
@@ -86,14 +95,15 @@ class EntryViewModel @Inject constructor(
                         timestamp = state.timestamp,
                         notes = state.notes.ifBlank { null },
                         latitude = location?.latitude,
-                        longitude = location?.longitude
+                        longitude = location?.longitude,
+                        locationName = locationName
                     )
                 )
                 if (location != null) {
                     weatherRepository.fetchAndStoreWeatherForEntry(entryId)
                 }
             }
-            _uiState.value = _uiState.value.copy(isSaved = true)
+            _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
         }
     }
 

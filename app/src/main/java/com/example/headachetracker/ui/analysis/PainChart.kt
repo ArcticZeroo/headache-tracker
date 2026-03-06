@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.headachetracker.data.model.TimeSeriesData
+import com.example.headachetracker.data.model.TimeSeriesPoint
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -73,8 +74,32 @@ fun PainChart(
                     val chartHeight = size.height - bottomPadding
                     val maxY = 5f
 
+                    // Normalize each series to 0-5 so different units are comparable
+                    val normalizedSeries = seriesData.map { series ->
+                        val values = series.points.map { it.value }
+                        val seriesMin = values.minOrNull() ?: 0f
+                        val seriesMax = values.maxOrNull() ?: 5f
+
+                        if (seriesMin >= 0f && seriesMax <= 5f) {
+                            series
+                        } else {
+                            val range = (seriesMax - seriesMin).coerceAtLeast(0.001f)
+                            TimeSeriesData(
+                                seriesName = series.seriesName,
+                                color = series.color,
+                                points = series.points.map { point ->
+                                    TimeSeriesPoint(
+                                        timestamp = point.timestamp,
+                                        value = ((point.value - seriesMin) / range) * maxY,
+                                        label = point.label
+                                    )
+                                }
+                            )
+                        }
+                    }
+
                     // Find global time range across all series
-                    val allPoints = seriesData.flatMap { it.points }
+                    val allPoints = normalizedSeries.flatMap { it.points }
                     if (allPoints.isEmpty()) return@Canvas
 
                     val minTime = allPoints.minOf { it.timestamp }
@@ -82,15 +107,16 @@ fun PainChart(
                     val timeRange = (maxTime - minTime).coerceAtLeast(1)
 
                     // Draw grid lines
-                    for (i in 0..5) {
-                        val y = chartHeight - (i / maxY) * chartHeight
+                    val gridLines = 5
+                    for (i in 0..gridLines) {
+                        val y = chartHeight - (i.toFloat() / gridLines) * chartHeight
                         drawLine(
                             color = gridColor,
                             start = Offset(leftPadding, y),
                             end = Offset(size.width, y),
                             strokeWidth = 1f
                         )
-                        // Y-axis labels
+                        // Y-axis labels (pain scale 0-5)
                         drawContext.canvas.nativeCanvas.drawText(
                             i.toString(),
                             10f,
@@ -104,7 +130,7 @@ fun PainChart(
                     }
 
                     // Draw each series
-                    seriesData.forEach { series ->
+                    normalizedSeries.forEach { series ->
                         if (series.points.size < 2) {
                             // Draw dots for single points
                             series.points.forEach { point ->

@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+
 @Entity(tableName = "headache_entries")
 data class HeadacheEntry(
     @PrimaryKey(autoGenerate = true)
@@ -19,6 +20,9 @@ data class HeadacheEntry(
     val latitude: Double? = null,
 
     val longitude: Double? = null,
+
+    @ColumnInfo(name = "location_name")
+    val locationName: String? = null,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),

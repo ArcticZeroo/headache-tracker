@@ -1,6 +1,7 @@
 package com.example.headachetracker.ui.entry
 
 import android.Manifest
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,8 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -40,10 +43,26 @@ fun QuickLogScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var locationPermissionRequested by rememberSaveable { mutableStateOf(false) }
+    var backgroundPermissionRequested by rememberSaveable { mutableStateOf(false) }
+
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Best-effort — widget location works if granted */ }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* Result doesn't matter — location capture is best-effort */ }
+    ) { granted ->
+        // After coarse location is granted, request background location for widget support
+        if (granted && !backgroundPermissionRequested && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val hasBgPermission = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!hasBgPermission) {
+                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            backgroundPermissionRequested = true
+        }
+    }
 
     // Request location permission once per screen lifecycle
     LaunchedEffect(Unit) {
@@ -53,6 +72,15 @@ fun QuickLogScreen(
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
             if (!hasPermission) {
                 locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+            } else if (!backgroundPermissionRequested && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Already have coarse, check for background
+                val hasBgPermission = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (!hasBgPermission) {
+                    backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                }
+                backgroundPermissionRequested = true
             }
             locationPermissionRequested = true
         }
@@ -103,10 +131,20 @@ fun QuickLogScreen(
 
             Button(
                 onClick = { viewModel.saveEntry() },
-                enabled = state.painLevel != null,
+                enabled = state.painLevel != null && !state.isSaving,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Log Entry")
+                if (state.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Saving…")
+                } else {
+                    Text("Log Entry")
+                }
             }
         }
     }

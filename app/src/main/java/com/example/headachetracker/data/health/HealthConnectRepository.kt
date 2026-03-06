@@ -66,20 +66,25 @@ class HealthConnectRepository @Inject constructor(
         if (!hasAllPermissions()) return emptyList()
 
         return try {
-            val response = client.readRecords(
-                ReadRecordsRequest(
+            val allRecords = mutableListOf<SleepSessionRecord>()
+            var pageToken: String? = null
+            do {
+                val request = ReadRecordsRequest(
                     recordType = SleepSessionRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
                         Instant.ofEpochMilli(startMillis),
                         Instant.ofEpochMilli(endMillis)
-                    )
+                    ),
+                    pageToken = pageToken
                 )
-            )
+                val response = client.readRecords(request)
+                allRecords.addAll(response.records)
+                pageToken = response.pageToken
+            } while (pageToken != null)
 
             val zone = ZoneId.systemDefault()
-            response.records
+            allRecords
                 .groupBy { record ->
-                    // Group by the date the sleep session ended (the morning)
                     record.endTime.atZone(zone).toLocalDate()
                 }
                 .map { (date, sessions) ->
@@ -107,25 +112,39 @@ class HealthConnectRepository @Inject constructor(
             val endInstant = Instant.ofEpochMilli(endMillis)
             val timeFilter = TimeRangeFilter.between(startInstant, endInstant)
 
-            val stepsResponse = client.readRecords(
-                ReadRecordsRequest(
-                    recordType = StepsRecord::class,
-                    timeRangeFilter = timeFilter
+            val allSteps = mutableListOf<StepsRecord>()
+            var pageToken: String? = null
+            do {
+                val response = client.readRecords(
+                    ReadRecordsRequest(
+                        recordType = StepsRecord::class,
+                        timeRangeFilter = timeFilter,
+                        pageToken = pageToken
+                    )
                 )
-            )
+                allSteps.addAll(response.records)
+                pageToken = response.pageToken
+            } while (pageToken != null)
 
-            val exerciseResponse = client.readRecords(
-                ReadRecordsRequest(
-                    recordType = ExerciseSessionRecord::class,
-                    timeRangeFilter = timeFilter
+            val allExercise = mutableListOf<ExerciseSessionRecord>()
+            pageToken = null
+            do {
+                val response = client.readRecords(
+                    ReadRecordsRequest(
+                        recordType = ExerciseSessionRecord::class,
+                        timeRangeFilter = timeFilter,
+                        pageToken = pageToken
+                    )
                 )
-            )
+                allExercise.addAll(response.records)
+                pageToken = response.pageToken
+            } while (pageToken != null)
 
-            val stepsByDate = stepsResponse.records.groupBy { record ->
+            val stepsByDate = allSteps.groupBy { record ->
                 record.startTime.atZone(zone).toLocalDate()
             }.mapValues { (_, records) -> records.sumOf { it.count } }
 
-            val exerciseByDate = exerciseResponse.records.groupBy { record ->
+            val exerciseByDate = allExercise.groupBy { record ->
                 record.startTime.atZone(zone).toLocalDate()
             }.mapValues { (_, records) ->
                 records.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }
