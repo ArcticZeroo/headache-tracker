@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Headache Tracker</string>
+    <string name="widget_name">Pain Level</string>
+    <string name="widget_description">Quick log your current pain level (0–5)</string>
+</resources>
