@@ -6,3 +6,6 @@
 -keep class dagger.hilt.** { *; }
 -keep class javax.inject.** { *; }
 -keep @dagger.hilt.android.lifecycle.HiltViewModel class * { *; }
+
+# AndroidX Startup
+-keep class androidx.startup.** { *; }
