@@ -2,12 +2,14 @@ package com.example.headachetracker.ui.entry
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -25,6 +27,7 @@ import com.example.headachetracker.ui.components.PainLevelSelector
 
 @Composable
 fun QuickLogScreen(
+    isExpanded: Boolean = false,
     viewModel: EntryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -37,44 +40,49 @@ fun QuickLogScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "How's your head?",
-            style = MaterialTheme.typography.headlineMedium
-        )
+        val contentWidth = if (isExpanded) Modifier.widthIn(max = 480.dp) else Modifier.fillMaxWidth()
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        PainLevelSelector(
-            selectedLevel = state.painLevel,
-            onLevelSelected = { viewModel.setPainLevel(it) }
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        OutlinedTextField(
-            value = state.notes,
-            onValueChange = { viewModel.setNotes(it) },
-            label = { Text("Notes (optional)") },
-            modifier = Modifier.fillMaxWidth(),
-            maxLines = 3,
-            placeholder = { Text("e.g., took ibuprofen, after screen time...") }
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = { viewModel.saveEntry() },
-            enabled = state.painLevel != null,
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = contentWidth.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text("Log Entry")
+            Text(
+                text = "How's your head?",
+                style = MaterialTheme.typography.headlineMedium
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            PainLevelSelector(
+                selectedLevel = state.painLevel,
+                onLevelSelected = { viewModel.setPainLevel(it) }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            OutlinedTextField(
+                value = state.notes,
+                onValueChange = { viewModel.setNotes(it) },
+                label = { Text("Notes (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 3,
+                placeholder = { Text("e.g., took ibuprofen, after screen time...") }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = { viewModel.saveEntry() },
+                enabled = state.painLevel != null,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Log Entry")
+            }
         }
     }
 }

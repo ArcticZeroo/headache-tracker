@@ -28,6 +28,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun AnalysisScreen(
+    isExpanded: Boolean = false,
     viewModel: AnalysisViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -82,18 +83,37 @@ fun AnalysisScreen(
             }
         }
 
-        // Pain over time chart
-        item {
-            PainChart(seriesData = state.seriesData)
-        }
-
-        // Calendar heatmap
-        item {
-            CalendarHeatmap(
-                currentMonth = state.currentMonth,
-                calendarData = state.calendarData,
-                onNavigateMonth = { viewModel.navigateMonth(it) }
-            )
+        if (isExpanded) {
+            // Side-by-side: chart + calendar
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    PainChart(
+                        seriesData = state.seriesData,
+                        modifier = Modifier.weight(1f)
+                    )
+                    CalendarHeatmap(
+                        currentMonth = state.currentMonth,
+                        calendarData = state.calendarData,
+                        onNavigateMonth = { viewModel.navigateMonth(it) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        } else {
+            // Stacked: chart then calendar
+            item {
+                PainChart(seriesData = state.seriesData)
+            }
+            item {
+                CalendarHeatmap(
+                    currentMonth = state.currentMonth,
+                    calendarData = state.calendarData,
+                    onNavigateMonth = { viewModel.navigateMonth(it) }
+                )
+            }
         }
     }
 }

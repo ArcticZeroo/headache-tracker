@@ -1,5 +1,6 @@
 package com.example.headachetracker
 
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -9,8 +10,12 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -38,18 +43,29 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 val bottomNavScreens = listOf(Screen.History, Screen.Analysis, Screen.QuickLog, Screen.Settings)
 
 @Composable
-fun MainNavigation() {
+fun MainNavigation(windowSizeClass: WindowSizeClass) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    val showBottomBar = bottomNavScreens.any { screen ->
+    val useNavRail = windowSizeClass.widthSizeClass != WindowWidthSizeClass.Compact
+    val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+
+    val showNav = bottomNavScreens.any { screen ->
         currentDestination?.hierarchy?.any { it.route == screen.route } == true
+    }
+
+    fun navigateTo(route: String) {
+        navController.navigate(route) {
+            popUpTo(navController.graph.startDestinationId) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
     }
 
     Scaffold(
         bottomBar = {
-            if (showBottomBar) {
+            if (showNav && !useNavRail) {
                 NavigationBar {
                     bottomNavScreens.forEach { screen ->
                         NavigationBarItem(
@@ -58,51 +74,62 @@ fun MainNavigation() {
                             selected = currentDestination?.hierarchy?.any {
                                 it.route == screen.route
                             } == true,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
+                            onClick = { navigateTo(screen.route) }
                         )
                     }
                 }
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.History.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Screen.History.route) {
-                HistoryScreen(
-                    onEditEntry = { entryId ->
-                        navController.navigate("edit/$entryId")
+        Row(modifier = Modifier.padding(innerPadding)) {
+            if (showNav && useNavRail) {
+                NavigationRail {
+                    bottomNavScreens.forEach { screen ->
+                        NavigationRailItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.label) },
+                            label = { Text(screen.label) },
+                            selected = currentDestination?.hierarchy?.any {
+                                it.route == screen.route
+                            } == true,
+                            onClick = { navigateTo(screen.route) }
+                        )
                     }
-                )
+                }
             }
-            composable(Screen.Analysis.route) {
-                AnalysisScreen()
-            }
-            composable(Screen.QuickLog.route) {
-                QuickLogScreen()
-            }
-            composable(Screen.Settings.route) {
-                SettingsScreen()
-            }
-            composable(
-                route = "edit/{entryId}",
-                arguments = listOf(navArgument("entryId") { type = NavType.LongType })
-            ) { backStackEntry ->
-                val entryId = backStackEntry.arguments?.getLong("entryId") ?: return@composable
-                EditEntryScreen(
-                    entryId = entryId,
-                    onNavigateBack = { navController.popBackStack() }
-                )
+
+            NavHost(
+                navController = navController,
+                startDestination = Screen.History.route,
+                modifier = Modifier.weight(1f)
+            ) {
+                composable(Screen.History.route) {
+                    HistoryScreen(
+                        onEditEntry = { entryId ->
+                            navController.navigate("edit/$entryId")
+                        },
+                        isExpanded = isExpanded
+                    )
+                }
+                composable(Screen.Analysis.route) {
+                    AnalysisScreen(isExpanded = isExpanded)
+                }
+                composable(Screen.QuickLog.route) {
+                    QuickLogScreen(isExpanded = isExpanded)
+                }
+                composable(Screen.Settings.route) {
+                    SettingsScreen()
+                }
+                composable(
+                    route = "edit/{entryId}",
+                    arguments = listOf(navArgument("entryId") { type = NavType.LongType })
+                ) { backStackEntry ->
+                    val entryId = backStackEntry.arguments?.getLong("entryId")
+                        ?: return@composable
+                    EditEntryScreen(
+                        entryId = entryId,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }
