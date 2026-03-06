@@ -2,6 +2,8 @@ package com.example.headachetracker.ui.analysis
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.headachetracker.data.correlation.CorrelationRepository
+import com.example.headachetracker.data.correlation.CorrelationResult
 import com.example.headachetracker.data.local.HeadacheEntry
 import com.example.headachetracker.data.model.TimeSeriesData
 import com.example.headachetracker.data.repository.AnalysisRepository
@@ -33,6 +35,7 @@ data class AnalysisUiState(
     val averagePain: Float = 0f,
     val daysSinceLastHeadache: Int? = null,
     val currentMonth: Calendar = Calendar.getInstance(),
+    val correlations: List<CorrelationResult> = emptyList(),
     val isLoading: Boolean = true
 )
 
@@ -40,7 +43,8 @@ data class AnalysisUiState(
 @HiltViewModel
 class AnalysisViewModel @Inject constructor(
     private val analysisRepository: AnalysisRepository,
-    private val headacheRepository: HeadacheRepository
+    private val headacheRepository: HeadacheRepository,
+    private val correlationRepository: CorrelationRepository
 ) : ViewModel() {
 
     private val _selectedRange = MutableStateFlow(TimeRange.MONTH)
@@ -89,6 +93,8 @@ class AnalysisViewModel @Inject constructor(
                     entryCal.get(Calendar.DAY_OF_MONTH).toString()
                 }
 
+                val correlations = correlationRepository.computeCorrelations(rangeStart, now)
+
                 AnalysisUiState(
                     selectedRange = range,
                     seriesData = series,
@@ -97,6 +103,7 @@ class AnalysisViewModel @Inject constructor(
                     averagePain = avg,
                     daysSinceLastHeadache = daysSince,
                     currentMonth = month,
+                    correlations = correlations,
                     isLoading = false
                 )
             }

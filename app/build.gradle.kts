@@ -83,4 +83,20 @@ dependencies {
 
     // WorkManager
     implementation(libs.work.runtime)
+
+    // Location
+    implementation(libs.play.services.location)
+
+    // Health Connect
+    implementation(libs.health.connect)
+
+    // Networking (Open-Meteo weather API)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.moshi)
+    implementation(libs.okhttp)
+    implementation(libs.moshi)
+
+    // Hilt WorkManager
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
 }

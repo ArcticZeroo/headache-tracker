@@ -39,4 +39,7 @@ interface HeadacheDao {
 
     @Query("DELETE FROM headache_entries WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("SELECT * FROM headache_entries WHERE latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY timestamp ASC")
+    suspend fun getEntriesWithLocation(): List<HeadacheEntry>
 }

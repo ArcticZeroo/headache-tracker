@@ -3,7 +3,9 @@ package com.example.headachetracker.ui.entry
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.headachetracker.data.local.HeadacheEntry
+import com.example.headachetracker.data.location.LocationProvider
 import com.example.headachetracker.data.repository.HeadacheRepository
+import com.example.headachetracker.data.weather.WeatherRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +24,9 @@ data class EntryUiState(
 
 @HiltViewModel
 class EntryViewModel @Inject constructor(
-    private val repository: HeadacheRepository
+    private val repository: HeadacheRepository,
+    private val locationProvider: LocationProvider,
+    private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EntryUiState())
@@ -59,23 +63,35 @@ class EntryViewModel @Inject constructor(
         val painLevel = state.painLevel ?: return
 
         viewModelScope.launch {
+            val location = locationProvider.getCurrentLocation()
+
             if (state.isEditing && state.entryId != null) {
                 repository.updateEntry(
                     HeadacheEntry(
                         id = state.entryId,
                         painLevel = painLevel,
                         timestamp = state.timestamp,
-                        notes = state.notes.ifBlank { null }
+                        notes = state.notes.ifBlank { null },
+                        latitude = location?.latitude,
+                        longitude = location?.longitude
                     )
                 )
+                if (location != null) {
+                    weatherRepository.fetchAndStoreWeatherForEntry(state.entryId)
+                }
             } else {
-                repository.insertEntry(
+                val entryId = repository.insertEntry(
                     HeadacheEntry(
                         painLevel = painLevel,
                         timestamp = state.timestamp,
-                        notes = state.notes.ifBlank { null }
+                        notes = state.notes.ifBlank { null },
+                        latitude = location?.latitude,
+                        longitude = location?.longitude
                     )
                 )
+                if (location != null) {
+                    weatherRepository.fetchAndStoreWeatherForEntry(entryId)
+                }
             }
             _uiState.value = _uiState.value.copy(isSaved = true)
         }

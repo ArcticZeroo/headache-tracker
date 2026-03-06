@@ -2,6 +2,7 @@ package com.example.headachetracker.backup
 
 import com.example.headachetracker.data.local.HeadacheDao
 import com.example.headachetracker.data.local.HeadacheEntry
+import com.example.headachetracker.data.local.WeatherDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -11,7 +12,8 @@ import javax.inject.Singleton
 
 @Singleton
 class DriveBackupManager @Inject constructor(
-    private val dao: HeadacheDao
+    private val dao: HeadacheDao,
+    private val weatherDao: WeatherDao
 ) {
 
     suspend fun exportToJson(): String = withContext(Dispatchers.IO) {
@@ -19,18 +21,34 @@ class DriveBackupManager @Inject constructor(
         val jsonArray = JSONArray()
 
         entries.forEach { entry ->
-            jsonArray.put(JSONObject().apply {
+            val entryJson = JSONObject().apply {
                 put("id", entry.id)
                 put("painLevel", entry.painLevel)
                 put("timestamp", entry.timestamp)
                 put("notes", entry.notes ?: JSONObject.NULL)
+                put("latitude", entry.latitude ?: JSONObject.NULL)
+                put("longitude", entry.longitude ?: JSONObject.NULL)
                 put("createdAt", entry.createdAt)
                 put("updatedAt", entry.updatedAt)
-            })
+            }
+
+            // Include weather data if available
+            val weather = weatherDao.getByEntryId(entry.id)
+            if (weather != null) {
+                entryJson.put("weather", JSONObject().apply {
+                    put("date", weather.date)
+                    put("temperatureMax", weather.temperatureMax ?: JSONObject.NULL)
+                    put("temperatureMin", weather.temperatureMin ?: JSONObject.NULL)
+                    put("pressureMean", weather.pressureMean ?: JSONObject.NULL)
+                    put("rainSum", weather.rainSum ?: JSONObject.NULL)
+                })
+            }
+
+            jsonArray.put(entryJson)
         }
 
         JSONObject().apply {
-            put("version", 1)
+            put("version", 2)
             put("exportedAt", System.currentTimeMillis())
             put("entries", jsonArray)
         }.toString(2)
@@ -46,8 +64,10 @@ class DriveBackupManager @Inject constructor(
                 painLevel = obj.getInt("painLevel"),
                 timestamp = obj.getLong("timestamp"),
                 notes = if (obj.isNull("notes")) null else obj.getString("notes"),
-                createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
-                updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
+                latitude = if (obj.isNull("latitude")) null else obj.getDouble("latitude"),
+                longitude = if (obj.isNull("longitude")) null else obj.getDouble("longitude"),
+                createdAt = obj.getLong("createdAt"),
+                updatedAt = obj.getLong("updatedAt")
             )
             dao.insert(entry)
         }

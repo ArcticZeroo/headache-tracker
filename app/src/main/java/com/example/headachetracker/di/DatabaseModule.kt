@@ -25,4 +25,9 @@ object DatabaseModule {
     fun provideHeadacheDao(database: HeadacheDatabase): HeadacheDao {
         return database.headacheDao()
     }
+
+    @Provides
+    fun provideWeatherDao(database: HeadacheDatabase): com.example.headachetracker.data.local.WeatherDao {
+        return database.weatherDao()
+    }
 }

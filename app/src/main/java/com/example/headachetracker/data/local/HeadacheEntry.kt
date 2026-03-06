@@ -16,6 +16,10 @@ data class HeadacheEntry(
 
     val notes: String? = null,
 
+    val latitude: Double? = null,
+
+    val longitude: Double? = null,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
 

@@ -115,6 +115,14 @@ fun AnalysisScreen(
                 )
             }
         }
+
+        // Correlations
+        item {
+            CorrelationCard(
+                correlations = state.correlations,
+                totalEntries = state.totalEntries
+            )
+        }
     }
 }
 
