@@ -18,11 +18,7 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): HeadacheDatabase {
-        return Room.databaseBuilder(
-            context,
-            HeadacheDatabase::class.java,
-            "headache_tracker.db"
-        ).build()
+        return HeadacheDatabase.getInstance(context)
     }
 
     @Provides
