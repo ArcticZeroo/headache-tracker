@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.headachetracker.data.local.HeadacheEntry
 import com.example.headachetracker.data.repository.HeadacheRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,6 +30,9 @@ class HistoryViewModel @Inject constructor(
 
     private val dateFormat = SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault())
 
+    private val _undoEvent = MutableSharedFlow<HeadacheEntry>()
+    val undoEvent: SharedFlow<HeadacheEntry> = _undoEvent.asSharedFlow()
+
     val groupedEntries: StateFlow<List<DayGroup>> = repository.getAllEntries()
         .map { entries ->
             entries.groupBy { entry ->
@@ -40,6 +46,13 @@ class HistoryViewModel @Inject constructor(
     fun deleteEntry(entry: HeadacheEntry) {
         viewModelScope.launch {
             repository.deleteEntry(entry)
+            _undoEvent.emit(entry)
+        }
+    }
+
+    fun undoDelete(entry: HeadacheEntry) {
+        viewModelScope.launch {
+            repository.insertEntry(entry)
         }
     }
 }

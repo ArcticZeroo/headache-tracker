@@ -10,17 +10,22 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,71 +48,90 @@ fun HistoryScreen(
 ) {
     val groups by viewModel.groupedEntries.collectAsState()
     var selectedEntryId by remember { mutableStateOf<Long?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    if (groups.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "No entries yet",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Use the widget or Quick Log tab\nto record your first headache",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
+    LaunchedEffect(Unit) {
+        viewModel.undoEvent.collect { deletedEntry ->
+            val result = snackbarHostState.showSnackbar(
+                message = "Entry deleted",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.undoDelete(deletedEntry)
             }
         }
-    } else if (isExpanded) {
-        // List-detail layout for foldable/tablet
-        Row(modifier = Modifier.fillMaxSize()) {
-            EntryList(
-                groups = groups,
-                onEdit = { id -> selectedEntryId = id },
-                onDelete = { viewModel.deleteEntry(it) },
-                modifier = Modifier
-                    .weight(0.45f)
-                    .fillMaxHeight()
-            )
-            VerticalDivider(modifier = Modifier.fillMaxHeight())
-            Box(
-                modifier = Modifier
-                    .weight(0.55f)
-                    .fillMaxHeight()
-            ) {
-                val entryId = selectedEntryId
-                if (entryId != null) {
-                    EditEntryScreen(
-                        entryId = entryId,
-                        onNavigateBack = { selectedEntryId = null }
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { scaffoldPadding ->
+        Box(modifier = Modifier.padding(scaffoldPadding)) {
+            if (groups.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "Select an entry to edit",
-                            style = MaterialTheme.typography.bodyLarge,
+                            text = "No entries yet",
+                            style = MaterialTheme.typography.headlineSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Use the widget or Quick Log tab\nto record your first headache",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
+            } else if (isExpanded) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    EntryList(
+                        groups = groups,
+                        onEdit = { id -> selectedEntryId = id },
+                        onDelete = { viewModel.deleteEntry(it) },
+                        modifier = Modifier
+                            .weight(0.45f)
+                            .fillMaxHeight()
+                    )
+                    VerticalDivider(modifier = Modifier.fillMaxHeight())
+                    Box(
+                        modifier = Modifier
+                            .weight(0.55f)
+                            .fillMaxHeight()
+                    ) {
+                        val entryId = selectedEntryId
+                        if (entryId != null) {
+                            EditEntryScreen(
+                                entryId = entryId,
+                                onNavigateBack = { selectedEntryId = null }
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Select an entry to edit",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                EntryList(
+                    groups = groups,
+                    onEdit = onEditEntry,
+                    onDelete = { viewModel.deleteEntry(it) },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
-    } else {
-        EntryList(
-            groups = groups,
-            onEdit = onEditEntry,
-            onDelete = { viewModel.deleteEntry(it) },
-            modifier = Modifier.fillMaxSize()
-        )
     }
 }
 
