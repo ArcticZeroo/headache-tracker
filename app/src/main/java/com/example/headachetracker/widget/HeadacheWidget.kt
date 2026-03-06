@@ -48,18 +48,18 @@ class HeadacheWidget : GlanceAppWidget() {
             (0..5).forEach { level ->
                 val bgColor = when (level) {
                     0 -> ColorProvider(Color(0xFF4CAF50))
-                    1 -> ColorProvider(Color(0xFF8BC34A))
-                    2 -> ColorProvider(Color(0xFFFFEB3B))
-                    3 -> ColorProvider(Color(0xFFFF9800))
-                    4 -> ColorProvider(Color(0xFFFF5722))
-                    5 -> ColorProvider(Color(0xFFF44336))
+                    1 -> ColorProvider(Color(0xFF7CB342))
+                    2 -> ColorProvider(Color(0xFFF9A825))
+                    3 -> ColorProvider(Color(0xFFEF6C00))
+                    4 -> ColorProvider(Color(0xFFE64A19))
+                    5 -> ColorProvider(Color(0xFFC62828))
                     else -> ColorProvider(Color(0xFF4CAF50))
                 }
 
                 Box(
                     modifier = GlanceModifier
                         .size(40.dp)
-                        .padding(2.dp)
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
                         .background(bgColor)
                         .clickable(
                             actionRunCallback<WidgetClickAction>(

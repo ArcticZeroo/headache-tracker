@@ -2,13 +2,13 @@ package com.example.headachetracker.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Pain level colors (green to red gradient)
+// Pain level colors (green to red gradient, darkened for white text readability)
 val PainLevel0 = Color(0xFF4CAF50)
-val PainLevel1 = Color(0xFF8BC34A)
-val PainLevel2 = Color(0xFFFFEB3B)
-val PainLevel3 = Color(0xFFFF9800)
-val PainLevel4 = Color(0xFFFF5722)
-val PainLevel5 = Color(0xFFF44336)
+val PainLevel1 = Color(0xFF7CB342)
+val PainLevel2 = Color(0xFFF9A825)
+val PainLevel3 = Color(0xFFEF6C00)
+val PainLevel4 = Color(0xFFE64A19)
+val PainLevel5 = Color(0xFFC62828)
 
 fun painLevelColor(level: Int): Color = when (level) {
     0 -> PainLevel0
