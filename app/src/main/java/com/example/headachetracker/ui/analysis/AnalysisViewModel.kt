@@ -7,9 +7,14 @@ import com.example.headachetracker.data.model.TimeSeriesData
 import com.example.headachetracker.data.repository.AnalysisRepository
 import com.example.headachetracker.data.repository.HeadacheRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
@@ -31,85 +36,79 @@ data class AnalysisUiState(
     val isLoading: Boolean = true
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AnalysisViewModel @Inject constructor(
     private val analysisRepository: AnalysisRepository,
     private val headacheRepository: HeadacheRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AnalysisUiState())
-    val uiState: StateFlow<AnalysisUiState> = _uiState.asStateFlow()
+    private val _selectedRange = MutableStateFlow(TimeRange.MONTH)
+    private val _currentMonth = MutableStateFlow(Calendar.getInstance())
 
-    init {
-        loadData()
-    }
+    // Re-emits whenever the DB changes or the selected range changes
+    val uiState: StateFlow<AnalysisUiState> = combine(
+        _selectedRange,
+        _currentMonth,
+        headacheRepository.getAllEntries()
+    ) { range, month, _ ->
+        // allEntries trigger is just to detect DB changes;
+        // we query the specific range below for accuracy
+        Triple(range, month, Unit)
+    }.flatMapLatest { (range, month, _) ->
+        val now = System.currentTimeMillis()
+        val rangeStart = now - (range.days.toLong() * 24 * 60 * 60 * 1000)
+
+        headacheRepository.getEntriesByDateRangeFlow(rangeStart, now)
+            .map { rangeEntries ->
+                val series = analysisRepository.getAllSeriesForRange(rangeStart, now)
+
+                val avg = if (rangeEntries.isNotEmpty()) {
+                    rangeEntries.map { it.painLevel }.average().toFloat()
+                } else 0f
+
+                val latest = rangeEntries.maxByOrNull { it.timestamp }
+                val daysSince = if (latest != null) {
+                    ((now - latest.timestamp) / (24 * 60 * 60 * 1000)).toInt()
+                } else null
+
+                // Calendar data for the selected month
+                val cal = month.clone() as Calendar
+                cal.set(Calendar.DAY_OF_MONTH, 1)
+                cal.set(Calendar.HOUR_OF_DAY, 0)
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                val monthStart = cal.timeInMillis
+                cal.add(Calendar.MONTH, 1)
+                val monthEnd = cal.timeInMillis
+
+                val monthEntries = headacheRepository.getEntriesByDateRange(monthStart, monthEnd)
+                val calendarData = monthEntries.groupBy { entry ->
+                    val entryCal = Calendar.getInstance().apply { timeInMillis = entry.timestamp }
+                    entryCal.get(Calendar.DAY_OF_MONTH).toString()
+                }
+
+                AnalysisUiState(
+                    selectedRange = range,
+                    seriesData = series,
+                    calendarData = calendarData,
+                    totalEntries = rangeEntries.size,
+                    averagePain = avg,
+                    daysSinceLastHeadache = daysSince,
+                    currentMonth = month,
+                    isLoading = false
+                )
+            }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AnalysisUiState())
 
     fun setTimeRange(range: TimeRange) {
-        _uiState.value = _uiState.value.copy(selectedRange = range)
-        loadData()
+        _selectedRange.value = range
     }
 
     fun navigateMonth(forward: Boolean) {
-        val cal = _uiState.value.currentMonth.clone() as Calendar
+        val cal = _currentMonth.value.clone() as Calendar
         cal.add(Calendar.MONTH, if (forward) 1 else -1)
-        _uiState.value = _uiState.value.copy(currentMonth = cal)
-        loadCalendarData()
-    }
-
-    private fun loadData() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-
-            val now = System.currentTimeMillis()
-            val rangeStart = now - (_uiState.value.selectedRange.days.toLong() * 24 * 60 * 60 * 1000)
-
-            // Load all time series data
-            val series = analysisRepository.getAllSeriesForRange(rangeStart, now)
-
-            // Load stats
-            val entries = headacheRepository.getEntriesByDateRange(rangeStart, now)
-            val avg = if (entries.isNotEmpty()) {
-                entries.map { it.painLevel }.average().toFloat()
-            } else 0f
-
-            val latest = headacheRepository.getLatestEntry()
-            val daysSince = if (latest != null) {
-                ((now - latest.timestamp) / (24 * 60 * 60 * 1000)).toInt()
-            } else null
-
-            _uiState.value = _uiState.value.copy(
-                seriesData = series,
-                totalEntries = entries.size,
-                averagePain = avg,
-                daysSinceLastHeadache = daysSince,
-                isLoading = false
-            )
-
-            loadCalendarData()
-        }
-    }
-
-    private fun loadCalendarData() {
-        viewModelScope.launch {
-            val cal = _uiState.value.currentMonth.clone() as Calendar
-            cal.set(Calendar.DAY_OF_MONTH, 1)
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            val monthStart = cal.timeInMillis
-
-            cal.add(Calendar.MONTH, 1)
-            val monthEnd = cal.timeInMillis
-
-            val entries = headacheRepository.getEntriesByDateRange(monthStart, monthEnd)
-
-            val grouped = entries.groupBy { entry ->
-                val entryCal = Calendar.getInstance().apply { timeInMillis = entry.timestamp }
-                entryCal.get(Calendar.DAY_OF_MONTH).toString()
-            }
-
-            _uiState.value = _uiState.value.copy(calendarData = grouped)
-        }
+        _currentMonth.value = cal
     }
 }
