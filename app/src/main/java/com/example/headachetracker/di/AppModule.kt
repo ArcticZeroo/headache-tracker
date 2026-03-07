@@ -1,6 +1,7 @@
 package com.example.headachetracker.di
 
 import com.example.headachetracker.data.source.AnalysisDataSource
+import com.example.headachetracker.data.source.ExerciseDataSource
 import com.example.headachetracker.data.source.FitnessDataSource
 import com.example.headachetracker.data.source.HeadacheDataSource
 import com.example.headachetracker.data.source.SleepDataSource
@@ -30,4 +31,8 @@ abstract class AppModule {
     @Binds
     @IntoSet
     abstract fun bindWeatherDataSource(impl: WeatherDataSource): AnalysisDataSource
+
+    @Binds
+    @IntoSet
+    abstract fun bindExerciseDataSource(impl: ExerciseDataSource): AnalysisDataSource
 }

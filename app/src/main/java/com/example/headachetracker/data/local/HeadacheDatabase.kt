@@ -8,13 +8,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [HeadacheEntry::class, WeatherData::class],
-    version = 2,
+    entities = [HeadacheEntry::class, DailyWeather::class],
+    version = 3,
     exportSchema = true
 )
 abstract class HeadacheDatabase : RoomDatabase() {
     abstract fun headacheDao(): HeadacheDao
-    abstract fun weatherDao(): WeatherDao
+    abstract fun dailyWeatherDao(): DailyWeatherDao
 
     companion object {
         @Volatile
@@ -26,13 +26,41 @@ abstract class HeadacheDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS daily_weather (
+                        date TEXT NOT NULL PRIMARY KEY,
+                        latitude REAL NOT NULL,
+                        longitude REAL NOT NULL,
+                        temperature_max REAL,
+                        temperature_min REAL,
+                        pressure_mean REAL,
+                        rain_sum REAL,
+                        fetched_at INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO daily_weather
+                        (date, latitude, longitude, temperature_max, temperature_min, pressure_mean, rain_sum, fetched_at)
+                    SELECT date, latitude, longitude, temperature_max, temperature_min, pressure_mean, rain_sum, fetched_at
+                    FROM weather_data
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE IF EXISTS weather_data")
+            }
+        }
+
         fun getInstance(context: Context): HeadacheDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     HeadacheDatabase::class.java,
                     "headache_tracker.db"
-                ).addMigrations(MIGRATION_1_2)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build().also { INSTANCE = it }
             }

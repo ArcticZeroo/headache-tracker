@@ -1,23 +1,28 @@
 package com.example.headachetracker.backup
 
+import com.example.headachetracker.data.local.DailyWeatherDao
 import com.example.headachetracker.data.local.HeadacheDao
 import com.example.headachetracker.data.local.HeadacheEntry
-import com.example.headachetracker.data.local.WeatherDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class DriveBackupManager @Inject constructor(
     private val dao: HeadacheDao,
-    private val weatherDao: WeatherDao
+    private val dailyWeatherDao: DailyWeatherDao
 ) {
+    private val isoDateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
     suspend fun exportToJson(): String = withContext(Dispatchers.IO) {
         val entries = dao.getEntriesByDateRange(0, Long.MAX_VALUE)
+        val zone = ZoneId.systemDefault()
         val jsonArray = JSONArray()
 
         entries.forEach { entry ->
@@ -32,8 +37,10 @@ class DriveBackupManager @Inject constructor(
                 put("updatedAt", entry.updatedAt)
             }
 
-            // Include weather data if available
-            val weather = weatherDao.getByEntryId(entry.id)
+            // Include weather data if available (looked up by date)
+            val isoDate = Instant.ofEpochMilli(entry.timestamp)
+                .atZone(zone).toLocalDate().format(isoDateFormatter)
+            val weather = dailyWeatherDao.getByDate(isoDate)
             if (weather != null) {
                 entryJson.put("weather", JSONObject().apply {
                     put("date", weather.date)
@@ -48,7 +55,7 @@ class DriveBackupManager @Inject constructor(
         }
 
         JSONObject().apply {
-            put("version", 2)
+            put("version", 3)
             put("exportedAt", System.currentTimeMillis())
             put("entries", jsonArray)
         }.toString(2)

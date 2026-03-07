@@ -9,7 +9,6 @@ import com.example.headachetracker.data.local.HeadacheDatabase
 import com.example.headachetracker.data.local.HeadacheEntry
 import com.example.headachetracker.data.location.GeocodingProvider
 import com.example.headachetracker.data.location.LocationProvider
-import com.example.headachetracker.data.weather.WeatherRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -33,7 +32,7 @@ class WidgetClickAction : ActionCallback {
             geocodingProvider.getLocationName(location.latitude, location.longitude)
         } else null
 
-        val entryId = withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             val db = HeadacheDatabase.getInstance(context)
             db.headacheDao().insert(
                 HeadacheEntry(
@@ -44,23 +43,6 @@ class WidgetClickAction : ActionCallback {
                     locationName = locationName
                 )
             )
-        }
-
-        if (location != null) {
-            try {
-                val db = HeadacheDatabase.getInstance(context)
-                val moshi = com.example.headachetracker.di.NetworkModule.provideMoshi()
-                val retrofit = com.example.headachetracker.di.NetworkModule.provideRetrofit(moshi)
-                val weatherService = com.example.headachetracker.di.NetworkModule.provideOpenMeteoService(retrofit)
-                val weatherRepository = WeatherRepository(
-                    weatherService = weatherService,
-                    weatherDao = db.weatherDao(),
-                    headacheDao = db.headacheDao()
-                )
-                weatherRepository.fetchAndStoreWeatherForEntry(entryId)
-            } catch (_: Exception) {
-                // Weather fetch is best-effort
-            }
         }
 
         withContext(Dispatchers.Main) {

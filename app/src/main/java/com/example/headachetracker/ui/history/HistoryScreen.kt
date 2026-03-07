@@ -210,11 +210,13 @@ private fun DayContextRow(context: DayContext) {
     val items = mutableListOf<@Composable () -> Unit>()
 
     if (context.highTemp != null && context.lowTemp != null) {
+        val highF = context.highTemp * 9.0 / 5.0 + 32.0
+        val lowF = context.lowTemp * 9.0 / 5.0 + 32.0
         items.add {
             Icon(Icons.Default.Thermostat, contentDescription = null, modifier = Modifier.size(14.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.width(2.dp))
-            Text("${context.lowTemp.toInt()}–${context.highTemp.toInt()}°",
+            Text("${lowF.toInt()}–${highF.toInt()}°F",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

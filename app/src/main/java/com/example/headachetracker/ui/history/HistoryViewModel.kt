@@ -3,8 +3,8 @@ package com.example.headachetracker.ui.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.headachetracker.data.health.HealthConnectRepository
+import com.example.headachetracker.data.local.DailyWeatherDao
 import com.example.headachetracker.data.local.HeadacheEntry
-import com.example.headachetracker.data.local.WeatherDao
 import com.example.headachetracker.data.repository.HeadacheRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
@@ -39,11 +40,12 @@ data class DayGroup(
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val repository: HeadacheRepository,
-    private val weatherDao: WeatherDao,
+    private val dailyWeatherDao: DailyWeatherDao,
     private val healthConnectRepository: HealthConnectRepository
 ) : ViewModel() {
 
     private val dateFormat = SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault())
+    private val isoDateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
     private val _undoEvent = MutableSharedFlow<HeadacheEntry>()
     val undoEvent: SharedFlow<HeadacheEntry> = _undoEvent.asSharedFlow()
@@ -66,28 +68,22 @@ class HistoryViewModel @Inject constructor(
 
     private fun loadDayContexts(entries: List<HeadacheEntry>) {
         viewModelScope.launch {
-            val entryIds = entries.map { it.id }
-            val weatherByEntryId = try {
-                weatherDao.getByEntryIds(entryIds).associateBy { it.entryId }
-            } catch (_: Exception) { emptyMap() }
-
             val zone = ZoneId.systemDefault()
-
-            // Group entries by date label
             val entriesByDate = entries.groupBy { dateFormat.format(Date(it.timestamp)) }
 
-            // Build weather context per date
+            // Look up weather by ISO date string for each date group
             val contexts = mutableMapOf<String, DayContext>()
             for ((dateLabel, dayEntries) in entriesByDate) {
-                val dayWeather = dayEntries.mapNotNull { weatherByEntryId[it.id] }
-                val highTemp = dayWeather.mapNotNull { it.temperatureMax }.maxOrNull()
-                val lowTemp = dayWeather.mapNotNull { it.temperatureMin }.minOrNull()
-                val rain = dayWeather.mapNotNull { it.rainSum }.maxOrNull()
+                val isoDate = Instant.ofEpochMilli(dayEntries.first().timestamp)
+                    .atZone(zone).toLocalDate().format(isoDateFormatter)
+                val weather = try {
+                    dailyWeatherDao.getByDate(isoDate)
+                } catch (_: Exception) { null }
 
                 contexts[dateLabel] = DayContext(
-                    highTemp = highTemp,
-                    lowTemp = lowTemp,
-                    rainMm = rain
+                    highTemp = weather?.temperatureMax,
+                    lowTemp = weather?.temperatureMin,
+                    rainMm = weather?.rainSum
                 )
             }
             _dayContexts.value = contexts

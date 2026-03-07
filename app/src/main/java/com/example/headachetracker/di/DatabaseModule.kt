@@ -2,6 +2,7 @@ package com.example.headachetracker.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.headachetracker.data.local.DailyWeatherDao
 import com.example.headachetracker.data.local.HeadacheDao
 import com.example.headachetracker.data.local.HeadacheDatabase
 import dagger.Module
@@ -27,7 +28,7 @@ object DatabaseModule {
     }
 
     @Provides
-    fun provideWeatherDao(database: HeadacheDatabase): com.example.headachetracker.data.local.WeatherDao {
-        return database.weatherDao()
+    fun provideDailyWeatherDao(database: HeadacheDatabase): DailyWeatherDao {
+        return database.dailyWeatherDao()
     }
 }

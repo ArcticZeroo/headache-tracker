@@ -16,7 +16,7 @@ class WeatherSyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            weatherRepository.syncMissingWeatherData()
+            weatherRepository.syncWeatherAroundEntries()
             Result.success()
         } catch (_: Exception) {
             Result.retry()

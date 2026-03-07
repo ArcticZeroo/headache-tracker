@@ -2,19 +2,22 @@ package com.example.headachetracker.data.correlation
 
 import com.example.headachetracker.data.health.HealthConnectRepository
 import com.example.headachetracker.data.local.HeadacheDao
-import com.example.headachetracker.data.local.WeatherDao
+import com.example.headachetracker.data.weather.WeatherRepository
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class CorrelationRepository @Inject constructor(
     private val headacheDao: HeadacheDao,
-    private val weatherDao: WeatherDao,
+    private val weatherRepository: WeatherRepository,
     private val healthConnectRepository: HealthConnectRepository
 ) {
+    private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+
     suspend fun computeCorrelations(startMillis: Long, endMillis: Long): List<CorrelationResult> {
         val entries = headacheDao.getEntriesByDateRange(startMillis, endMillis)
         if (entries.size < CorrelationEngine.MIN_SAMPLE_SIZE) return emptyList()
@@ -25,12 +28,12 @@ class CorrelationRepository @Inject constructor(
             Instant.ofEpochMilli(entry.timestamp).atZone(zone).toLocalDate()
         }.filterKeys { it != today }
             .mapValues { (_, dayEntries) ->
-            dayEntries.maxOf { it.painLevel }.toDouble()
-        }
+                dayEntries.maxOf { it.painLevel }.toDouble()
+            }
 
         val results = mutableListOf<CorrelationResult>()
 
-        // Sleep correlation: match sleep (night before) to headache
+        // Sleep correlation
         val sleepData = healthConnectRepository.getSleepData(startMillis, endMillis)
         if (sleepData.isNotEmpty()) {
             val sleepByDate = sleepData.associate { it.date to it.totalDurationHours }
@@ -45,7 +48,7 @@ class CorrelationRepository @Inject constructor(
             }
         }
 
-        // Steps correlation
+        // Steps / exercise correlation
         val fitnessData = healthConnectRepository.getFitnessData(startMillis, endMillis)
         if (fitnessData.isNotEmpty()) {
             val stepsByDate = fitnessData.associate { it.date to it.steps.toDouble() }
@@ -58,22 +61,52 @@ class CorrelationRepository @Inject constructor(
             if (exerciseResult != null) results.add(exerciseResult)
         }
 
-        // Weather correlations
-        val weatherData = weatherDao.getByDateRange(startMillis, endMillis)
+        // Ensure weather data covering D-1 through D+1 for the full range
+        val adjStart = Instant.ofEpochMilli(startMillis).atZone(zone).toLocalDate()
+            .minusDays(1).format(dateFormatter)
+        val adjEnd = Instant.ofEpochMilli(endMillis).atZone(zone).toLocalDate()
+            .plusDays(1).format(dateFormatter)
+        val locationEntry = entries.firstOrNull { it.latitude != null && it.longitude != null }
+        if (locationEntry != null) {
+            try {
+                weatherRepository.ensureWeatherForDateRange(
+                    adjStart, adjEnd,
+                    locationEntry.latitude!!, locationEntry.longitude!!
+                )
+            } catch (_: Exception) { }
+        }
+
+        // Weather correlations (same-day + adjacent-day)
+        val weatherData = weatherRepository.getWeatherForDateRange(adjStart, adjEnd)
         if (weatherData.isNotEmpty()) {
+            val weatherByDate = weatherData.associateBy { LocalDate.parse(it.date, dateFormatter) }
+
             val tempByDate = mutableMapOf<LocalDate, Double>()
             val pressureByDate = mutableMapOf<LocalDate, Double>()
             val rainByDate = mutableMapOf<LocalDate, Double>()
+            val prevRainByDate = mutableMapOf<LocalDate, Double>()
+            val prevPressureByDate = mutableMapOf<LocalDate, Double>()
+            val nextRainByDate = mutableMapOf<LocalDate, Double>()
+            val nextPressureByDate = mutableMapOf<LocalDate, Double>()
 
-            for (w in weatherData) {
-                val date = LocalDate.parse(w.date)
-                w.temperatureMax?.let { max ->
-                    w.temperatureMin?.let { min ->
-                        tempByDate[date] = (max + min) / 2.0
+            for (date in painByDate.keys) {
+                weatherByDate[date]?.let { w ->
+                    w.temperatureMax?.let { max ->
+                        w.temperatureMin?.let { min ->
+                            tempByDate[date] = (max + min) / 2.0
+                        }
                     }
+                    w.pressureMean?.let { pressureByDate[date] = it }
+                    w.rainSum?.let { rainByDate[date] = it }
                 }
-                w.pressureMean?.let { pressureByDate[date] = it }
-                w.rainSum?.let { rainByDate[date] = it }
+                weatherByDate[date.minusDays(1)]?.let { prev ->
+                    prev.rainSum?.let { prevRainByDate[date] = it }
+                    prev.pressureMean?.let { prevPressureByDate[date] = it }
+                }
+                weatherByDate[date.plusDays(1)]?.let { next ->
+                    next.rainSum?.let { nextRainByDate[date] = it }
+                    next.pressureMean?.let { nextPressureByDate[date] = it }
+                }
             }
 
             val tempResult = pairAndCorrelate(painByDate, tempByDate, "Temperature")
@@ -84,6 +117,18 @@ class CorrelationRepository @Inject constructor(
 
             val rainResult = pairAndCorrelate(painByDate, rainByDate, "Rainfall")
             if (rainResult != null) results.add(rainResult)
+
+            val prevRainResult = pairAndCorrelate(painByDate, prevRainByDate, "Prev. Day Rain")
+            if (prevRainResult != null) results.add(prevRainResult)
+
+            val prevPressureResult = pairAndCorrelate(painByDate, prevPressureByDate, "Prev. Day Pressure")
+            if (prevPressureResult != null) results.add(prevPressureResult)
+
+            val nextRainResult = pairAndCorrelate(painByDate, nextRainByDate, "Next Day Rain")
+            if (nextRainResult != null) results.add(nextRainResult)
+
+            val nextPressureResult = pairAndCorrelate(painByDate, nextPressureByDate, "Next Day Pressure")
+            if (nextPressureResult != null) results.add(nextPressureResult)
         }
 
         return results

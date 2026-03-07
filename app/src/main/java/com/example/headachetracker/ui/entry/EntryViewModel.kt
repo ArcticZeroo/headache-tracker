@@ -1,13 +1,19 @@
 package com.example.headachetracker.ui.entry
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.headachetracker.data.local.HeadacheEntry
 import com.example.headachetracker.data.location.GeocodingProvider
 import com.example.headachetracker.data.location.LocationProvider
 import com.example.headachetracker.data.repository.HeadacheRepository
-import com.example.headachetracker.data.weather.WeatherRepository
+import com.example.headachetracker.data.weather.WeatherSyncWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +35,7 @@ class EntryViewModel @Inject constructor(
     private val repository: HeadacheRepository,
     private val locationProvider: LocationProvider,
     private val geocodingProvider: GeocodingProvider,
-    private val weatherRepository: WeatherRepository
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EntryUiState())
@@ -85,11 +91,8 @@ class EntryViewModel @Inject constructor(
                         locationName = locationName
                     )
                 )
-                if (location != null) {
-                    weatherRepository.fetchAndStoreWeatherForEntry(state.entryId)
-                }
             } else {
-                val entryId = repository.insertEntry(
+                repository.insertEntry(
                     HeadacheEntry(
                         painLevel = painLevel,
                         timestamp = state.timestamp,
@@ -99,9 +102,16 @@ class EntryViewModel @Inject constructor(
                         locationName = locationName
                     )
                 )
-                if (location != null) {
-                    weatherRepository.fetchAndStoreWeatherForEntry(entryId)
-                }
+            }
+            if (location != null) {
+                val syncRequest = OneTimeWorkRequestBuilder<WeatherSyncWorker>()
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build()
+                    )
+                    .build()
+                WorkManager.getInstance(context).enqueue(syncRequest)
             }
             _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
         }
