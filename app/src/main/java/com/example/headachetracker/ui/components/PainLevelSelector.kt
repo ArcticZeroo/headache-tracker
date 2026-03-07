@@ -27,7 +27,8 @@ import com.example.headachetracker.ui.theme.painLevelColor
 fun PainLevelSelector(
     selectedLevel: Int?,
     onLevelSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     Column(
         modifier = modifier,
@@ -45,13 +46,14 @@ fun PainLevelSelector(
             (0..5).forEach { level ->
                 val isSelected = selectedLevel == level
                 val color = painLevelColor(level)
+                val alpha = if (!enabled) 0.4f else if (isSelected) 1f else 0.25f
 
                 Box(
                     modifier = Modifier
                         .size(52.dp)
                         .clip(CircleShape)
-                        .background(if (isSelected) color else color.copy(alpha = 0.25f))
-                        .clickable { onLevelSelected(level) },
+                        .background(color.copy(alpha = alpha))
+                        .then(if (enabled) Modifier.clickable { onLevelSelected(level) } else Modifier),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

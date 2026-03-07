@@ -114,7 +114,10 @@ fun MainNavigation(windowSizeClass: WindowSizeClass) {
                     AnalysisScreen(isExpanded = isExpanded)
                 }
                 composable(Screen.QuickLog.route) {
-                    QuickLogScreen(isExpanded = isExpanded)
+                    QuickLogScreen(
+                        isExpanded = isExpanded,
+                        onEntryLogged = { navigateTo(Screen.History.route) }
+                    )
                 }
                 composable(Screen.Settings.route) {
                     SettingsScreen()

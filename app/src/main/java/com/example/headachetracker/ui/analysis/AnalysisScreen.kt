@@ -9,10 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -83,17 +87,45 @@ fun AnalysisScreen(
             }
         }
 
+        // Series tab selector
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(state.availableSeriesNames) { name ->
+                    FilterChip(
+                        selected = state.selectedSeriesName == name,
+                        onClick = { viewModel.selectSeries(name) },
+                        label = { Text(name) }
+                    )
+                }
+                if (state.isLoadingOverlays) {
+                    item {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .padding(4.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+            }
+        }
+
+        // Chart for selected series
+        val selectedSeries = state.allSeries[state.selectedSeriesName]
         if (isExpanded) {
-            // Side-by-side: chart + calendar
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    PainChart(
-                        seriesData = state.seriesData,
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (selectedSeries != null) {
+                        PainChart(
+                            series = selectedSeries,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     CalendarHeatmap(
                         currentMonth = state.currentMonth,
                         calendarData = state.calendarData,
@@ -103,9 +135,10 @@ fun AnalysisScreen(
                 }
             }
         } else {
-            // Stacked: chart then calendar
-            item {
-                PainChart(seriesData = state.seriesData)
+            if (selectedSeries != null) {
+                item {
+                    PainChart(series = selectedSeries)
+                }
             }
             item {
                 CalendarHeatmap(

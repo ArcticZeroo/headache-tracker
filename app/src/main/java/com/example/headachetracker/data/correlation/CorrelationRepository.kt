@@ -20,9 +20,11 @@ class CorrelationRepository @Inject constructor(
         if (entries.size < CorrelationEngine.MIN_SAMPLE_SIZE) return emptyList()
 
         val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
         val painByDate = entries.groupBy { entry ->
             Instant.ofEpochMilli(entry.timestamp).atZone(zone).toLocalDate()
-        }.mapValues { (_, dayEntries) ->
+        }.filterKeys { it != today }
+            .mapValues { (_, dayEntries) ->
             dayEntries.maxOf { it.painLevel }.toDouble()
         }
 
@@ -37,7 +39,8 @@ class CorrelationRepository @Inject constructor(
                 val (painValues, sleepValues) = paired
                 val r = CorrelationEngine.pearson(painValues, sleepValues)
                 if (r != null) {
-                    results.add(CorrelationEngine.interpret("Sleep Duration", r, painValues.size))
+                    val pctDiff = CorrelationEngine.computePercentageDiff(painValues, sleepValues)
+                    results.add(CorrelationEngine.interpret("Sleep Duration", r, painValues.size, pctDiff))
                 }
             }
         }
@@ -94,7 +97,8 @@ class CorrelationRepository @Inject constructor(
         val paired = pairData(painByDate, factorByDate) ?: return null
         val (painValues, factorValues) = paired
         val r = CorrelationEngine.pearson(painValues, factorValues) ?: return null
-        return CorrelationEngine.interpret(factorName, r, painValues.size)
+        val pctDiff = CorrelationEngine.computePercentageDiff(painValues, factorValues)
+        return CorrelationEngine.interpret(factorName, r, painValues.size, pctDiff)
     }
 
     private fun pairData(

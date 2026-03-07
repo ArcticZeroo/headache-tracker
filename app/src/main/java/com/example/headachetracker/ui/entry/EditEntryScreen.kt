@@ -89,7 +89,8 @@ fun EditEntryScreen(
         ) {
             PainLevelSelector(
                 selectedLevel = state.painLevel,
-                onLevelSelected = { viewModel.setPainLevel(it) }
+                onLevelSelected = { viewModel.setPainLevel(it) },
+                enabled = !state.isSaving
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -103,13 +104,15 @@ fun EditEntryScreen(
             ) {
                 OutlinedButton(
                     onClick = { showDatePicker = true },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    enabled = !state.isSaving
                 ) {
                     Text(dateFormat.format(Date(state.timestamp)))
                 }
                 OutlinedButton(
                     onClick = { showTimePicker = true },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    enabled = !state.isSaving
                 ) {
                     Text(timeFormat.format(Date(state.timestamp)))
                 }
@@ -120,7 +123,8 @@ fun EditEntryScreen(
                 onValueChange = { viewModel.setNotes(it) },
                 label = { Text("Notes (optional)") },
                 modifier = Modifier.fillMaxWidth(),
-                maxLines = 3
+                maxLines = 3,
+                enabled = !state.isSaving
             )
 
             Spacer(modifier = Modifier.weight(1f))

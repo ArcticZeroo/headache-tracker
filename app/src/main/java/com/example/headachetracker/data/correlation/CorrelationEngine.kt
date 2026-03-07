@@ -6,7 +6,8 @@ data class CorrelationResult(
     val factorName: String,
     val coefficient: Double,
     val sampleSize: Int,
-    val interpretation: String
+    val interpretation: String,
+    val percentageDifference: Double? = null
 )
 
 object CorrelationEngine {
@@ -41,23 +42,53 @@ object CorrelationEngine {
         return numerator / (sqrt(denomX) * sqrt(denomY))
     }
 
-    fun interpret(factorName: String, coefficient: Double, sampleSize: Int): CorrelationResult {
+    /**
+     * Computes the percentage difference in average pain between days with
+     * above-median vs below-median values of a factor.
+     */
+    fun computePercentageDiff(painValues: List<Double>, factorValues: List<Double>): Double? {
+        if (painValues.size < MIN_SAMPLE_SIZE) return null
+        val median = factorValues.sorted()[factorValues.size / 2]
+        val highPain = painValues.filterIndexed { i, _ -> factorValues[i] >= median }
+        val lowPain = painValues.filterIndexed { i, _ -> factorValues[i] < median }
+        if (lowPain.isEmpty() || highPain.isEmpty()) return null
+        val lowAvg = lowPain.average()
+        if (lowAvg == 0.0) return null
+        return ((highPain.average() - lowAvg) / lowAvg) * 100.0
+    }
+
+    fun interpret(
+        factorName: String,
+        coefficient: Double,
+        sampleSize: Int,
+        percentageDifference: Double? = null
+    ): CorrelationResult {
         val strength = kotlin.math.abs(coefficient)
-        val direction = if (coefficient > 0) "positive" else "negative"
+        val pctAbs = percentageDifference?.let { kotlin.math.abs(it).toInt() }
 
         val interpretation = when {
-            strength < 0.1 -> "No meaningful correlation with $factorName"
-            strength < 0.3 -> "Weak $direction correlation with $factorName"
-            strength < 0.5 -> "Moderate $direction correlation with $factorName"
-            strength < 0.7 -> "Strong $direction correlation with $factorName"
-            else -> "Very strong $direction correlation with $factorName"
+            strength < 0.1 -> "No clear link between $factorName and your pain"
+            else -> {
+                val qualifier = when {
+                    strength < 0.3 -> "slightly"
+                    strength < 0.5 -> "noticeably"
+                    else -> "significantly"
+                }
+                val pctText = if (pctAbs != null && pctAbs > 0) " (~${pctAbs}%)" else ""
+                if (coefficient > 0) {
+                    "Your pain tends to be $qualifier worse on days with more $factorName$pctText"
+                } else {
+                    "Your pain tends to be $qualifier better on days with more $factorName$pctText"
+                }
+            }
         }
 
         return CorrelationResult(
             factorName = factorName,
             coefficient = coefficient,
             sampleSize = sampleSize,
-            interpretation = interpretation
+            interpretation = interpretation,
+            percentageDifference = percentageDifference
         )
     }
 }

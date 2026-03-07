@@ -38,6 +38,7 @@ import com.example.headachetracker.ui.components.PainLevelSelector
 @Composable
 fun QuickLogScreen(
     isExpanded: Boolean = false,
+    onEntryLogged: () -> Unit = {},
     viewModel: EntryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -90,6 +91,7 @@ fun QuickLogScreen(
         if (state.isSaved) {
             Toast.makeText(context, "Entry logged!", Toast.LENGTH_SHORT).show()
             viewModel.resetState()
+            onEntryLogged()
         }
     }
 
@@ -113,7 +115,8 @@ fun QuickLogScreen(
 
             PainLevelSelector(
                 selectedLevel = state.painLevel,
-                onLevelSelected = { viewModel.setPainLevel(it) }
+                onLevelSelected = { viewModel.setPainLevel(it) },
+                enabled = !state.isSaving
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -124,7 +127,8 @@ fun QuickLogScreen(
                 label = { Text("Notes (optional)") },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3,
-                placeholder = { Text("e.g., took ibuprofen, after screen time...") }
+                placeholder = { Text("e.g., took ibuprofen, after screen time...") },
+                enabled = !state.isSaving
             )
 
             Spacer(modifier = Modifier.height(24.dp))

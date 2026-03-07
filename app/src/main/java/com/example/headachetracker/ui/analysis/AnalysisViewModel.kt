@@ -1,21 +1,22 @@
 package com.example.headachetracker.ui.analysis
 
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.headachetracker.data.correlation.CorrelationRepository
 import com.example.headachetracker.data.correlation.CorrelationResult
 import com.example.headachetracker.data.local.HeadacheEntry
 import com.example.headachetracker.data.model.TimeSeriesData
+import com.example.headachetracker.data.model.TimeSeriesPoint
 import com.example.headachetracker.data.repository.AnalysisRepository
 import com.example.headachetracker.data.repository.HeadacheRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -29,17 +30,19 @@ enum class TimeRange(val days: Int, val label: String) {
 
 data class AnalysisUiState(
     val selectedRange: TimeRange = TimeRange.MONTH,
-    val seriesData: List<TimeSeriesData> = emptyList(),
+    val allSeries: Map<String, TimeSeriesData> = emptyMap(),
+    val selectedSeriesName: String = "Pain Level",
+    val availableSeriesNames: List<String> = listOf("Pain Level"),
     val calendarData: Map<String, List<HeadacheEntry>> = emptyMap(),
     val totalEntries: Int = 0,
     val averagePain: Float = 0f,
     val daysSinceLastHeadache: Int? = null,
     val currentMonth: Calendar = Calendar.getInstance(),
     val correlations: List<CorrelationResult> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val isLoadingOverlays: Boolean = false
 )
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AnalysisViewModel @Inject constructor(
     private val analysisRepository: AnalysisRepository,
@@ -49,68 +52,117 @@ class AnalysisViewModel @Inject constructor(
 
     private val _selectedRange = MutableStateFlow(TimeRange.MONTH)
     private val _currentMonth = MutableStateFlow(Calendar.getInstance())
+    private val _uiState = MutableStateFlow(AnalysisUiState())
 
-    // Re-emits whenever the DB changes or the selected range changes
-    val uiState: StateFlow<AnalysisUiState> = combine(
-        _selectedRange,
-        _currentMonth,
-        headacheRepository.getAllEntries()
-    ) { range, month, _ ->
-        // allEntries trigger is just to detect DB changes;
-        // we query the specific range below for accuracy
-        Triple(range, month, Unit)
-    }.flatMapLatest { (range, month, _) ->
+    val uiState: StateFlow<AnalysisUiState> = _uiState
+
+    private var overlayJob: Job? = null
+    private var correlationJob: Job? = null
+
+    init {
+        // React to range changes + DB changes → load chart data
+        viewModelScope.launch {
+            combine(_selectedRange, headacheRepository.getAllEntries()) { range, _ -> range }
+                .collectLatest { range -> loadChartData(range) }
+        }
+
+        // React to month changes + DB changes → load calendar data independently
+        viewModelScope.launch {
+            combine(_currentMonth, headacheRepository.getAllEntries()) { month, _ -> month }
+                .collectLatest { month -> loadCalendarData(month) }
+        }
+    }
+
+    private suspend fun loadChartData(range: TimeRange) {
         val now = System.currentTimeMillis()
         val rangeStart = now - (range.days.toLong() * 24 * 60 * 60 * 1000)
 
-        headacheRepository.getEntriesByDateRangeFlow(rangeStart, now)
-            .map { rangeEntries ->
-                val series = analysisRepository.getAllSeriesForRange(rangeStart, now)
-
-                val avg = if (rangeEntries.isNotEmpty()) {
-                    rangeEntries.map { it.painLevel }.average().toFloat()
-                } else 0f
-
-                val latest = rangeEntries.maxByOrNull { it.timestamp }
-                val daysSince = if (latest != null) {
-                    ((now - latest.timestamp) / (24 * 60 * 60 * 1000)).toInt()
-                } else null
-
-                // Calendar data for the selected month
-                val cal = month.clone() as Calendar
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                cal.set(Calendar.HOUR_OF_DAY, 0)
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                cal.set(Calendar.MILLISECOND, 0)
-                val monthStart = cal.timeInMillis
-                cal.add(Calendar.MONTH, 1)
-                val monthEnd = cal.timeInMillis
-
-                val monthEntries = headacheRepository.getEntriesByDateRange(monthStart, monthEnd)
-                val calendarData = monthEntries.groupBy { entry ->
-                    val entryCal = Calendar.getInstance().apply { timeInMillis = entry.timestamp }
-                    entryCal.get(Calendar.DAY_OF_MONTH).toString()
-                }
-
-                val correlations = correlationRepository.computeCorrelations(rangeStart, now)
-
-                AnalysisUiState(
-                    selectedRange = range,
-                    seriesData = series,
-                    calendarData = calendarData,
-                    totalEntries = rangeEntries.size,
-                    averagePain = avg,
-                    daysSinceLastHeadache = daysSince,
-                    currentMonth = month,
-                    correlations = correlations,
-                    isLoading = false
+        // Load pain data first (fast DB query)
+        val entries = headacheRepository.getEntriesByDateRange(rangeStart, now)
+        val painSeries = TimeSeriesData(
+            seriesName = "Pain Level",
+            color = Color(0xFFE53935),
+            points = entries.map { entry ->
+                TimeSeriesPoint(
+                    timestamp = entry.timestamp,
+                    value = entry.painLevel.toFloat(),
+                    label = entry.notes
                 )
             }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AnalysisUiState())
+        )
+
+        val avg = if (entries.isNotEmpty()) entries.map { it.painLevel }.average().toFloat() else 0f
+        val latest = entries.maxByOrNull { it.timestamp }
+        val daysSince = if (latest != null) {
+            ((now - latest.timestamp) / (24 * 60 * 60 * 1000)).toInt()
+        } else null
+
+        _uiState.value = _uiState.value.copy(
+            selectedRange = range,
+            allSeries = mapOf("Pain Level" to painSeries),
+            availableSeriesNames = listOf("Pain Level"),
+            totalEntries = entries.size,
+            averagePain = avg,
+            daysSinceLastHeadache = daysSince,
+            isLoading = false,
+            isLoadingOverlays = true
+        )
+
+        // Load overlay series async
+        overlayJob?.cancel()
+        overlayJob = viewModelScope.launch {
+            try {
+                val allSeries = analysisRepository.getAllSeriesForRange(rangeStart, now)
+                val overlaySeries = allSeries.filter { it.seriesName != "Pain Level" }
+                val seriesMap = mapOf("Pain Level" to painSeries) + overlaySeries.associateBy { it.seriesName }
+                _uiState.value = _uiState.value.copy(
+                    allSeries = seriesMap,
+                    availableSeriesNames = listOf("Pain Level") + overlaySeries.map { it.seriesName },
+                    isLoadingOverlays = false
+                )
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingOverlays = false)
+            }
+        }
+
+        // Load correlations async
+        correlationJob?.cancel()
+        correlationJob = viewModelScope.launch {
+            try {
+                val correlations = correlationRepository.computeCorrelations(rangeStart, now)
+                _uiState.value = _uiState.value.copy(correlations = correlations)
+            } catch (_: Exception) { }
+        }
+    }
+
+    private suspend fun loadCalendarData(month: Calendar) {
+        // Update month immediately (instant navigation)
+        _uiState.value = _uiState.value.copy(currentMonth = month)
+
+        val cal = month.clone() as Calendar
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val monthStart = cal.timeInMillis
+        cal.add(Calendar.MONTH, 1)
+        val monthEnd = cal.timeInMillis
+
+        val monthEntries = headacheRepository.getEntriesByDateRange(monthStart, monthEnd)
+        val calendarData = monthEntries.groupBy { entry ->
+            val entryCal = Calendar.getInstance().apply { timeInMillis = entry.timestamp }
+            entryCal.get(Calendar.DAY_OF_MONTH).toString()
+        }
+        _uiState.value = _uiState.value.copy(calendarData = calendarData)
+    }
 
     fun setTimeRange(range: TimeRange) {
         _selectedRange.value = range
+    }
+
+    fun selectSeries(name: String) {
+        _uiState.value = _uiState.value.copy(selectedSeriesName = name)
     }
 
     fun navigateMonth(forward: Boolean) {
