@@ -10,6 +10,9 @@ import com.example.headachetracker.data.model.TimeSeriesData
 import com.example.headachetracker.data.model.TimeSeriesPoint
 import com.example.headachetracker.data.repository.AnalysisRepository
 import com.example.headachetracker.data.repository.HeadacheRepository
+import com.example.headachetracker.data.repository.ModelStatus
+import com.example.headachetracker.data.repository.PredictionRepository
+import com.example.headachetracker.data.repository.PredictionResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,14 +43,23 @@ data class AnalysisUiState(
     val currentMonth: Calendar = Calendar.getInstance(),
     val correlations: List<CorrelationResult> = emptyList(),
     val isLoading: Boolean = true,
-    val isLoadingOverlays: Boolean = false
+    val isLoadingOverlays: Boolean = false,
+    val prediction: PredictionUiState = PredictionUiState.Loading
 )
+
+sealed class PredictionUiState {
+    data object Loading : PredictionUiState()
+    data class NotEnoughData(val entryCount: Int, val threshold: Int) : PredictionUiState()
+    data class Untrained(val entryCount: Int) : PredictionUiState()
+    data class Ready(val result: PredictionResult) : PredictionUiState()
+}
 
 @HiltViewModel
 class AnalysisViewModel @Inject constructor(
     private val analysisRepository: AnalysisRepository,
     private val headacheRepository: HeadacheRepository,
-    private val correlationRepository: CorrelationRepository
+    private val correlationRepository: CorrelationRepository,
+    private val predictionRepository: PredictionRepository
 ) : ViewModel() {
 
     private val _selectedRange = MutableStateFlow(TimeRange.MONTH)
@@ -71,6 +83,30 @@ class AnalysisViewModel @Inject constructor(
             combine(_currentMonth, headacheRepository.getAllEntries()) { month, _ -> month }
                 .collectLatest { month -> loadCalendarData(month) }
         }
+
+        // Load prediction once on init (and whenever entries change)
+        viewModelScope.launch {
+            headacheRepository.getAllEntries().collectLatest { loadPrediction() }
+        }
+    }
+
+    private suspend fun loadPrediction() {
+        _uiState.value = _uiState.value.copy(prediction = PredictionUiState.Loading)
+        val result = try {
+            predictionRepository.getPrediction()
+        } catch (_: Exception) {
+            _uiState.value = _uiState.value.copy(prediction = PredictionUiState.Loading)
+            return
+        }
+        val predictionUiState = when (result.status) {
+            ModelStatus.NOT_ENOUGH_DATA -> PredictionUiState.NotEnoughData(
+                entryCount = result.entryCount,
+                threshold = com.example.headachetracker.data.ml.MIN_TRAINING_ENTRIES
+            )
+            ModelStatus.UNTRAINED -> PredictionUiState.Untrained(result.entryCount)
+            ModelStatus.READY -> PredictionUiState.Ready(result)
+        }
+        _uiState.value = _uiState.value.copy(prediction = predictionUiState)
     }
 
     private suspend fun loadChartData(range: TimeRange) {
@@ -169,5 +205,9 @@ class AnalysisViewModel @Inject constructor(
         val cal = _currentMonth.value.clone() as Calendar
         cal.add(Calendar.MONTH, if (forward) 1 else -1)
         _currentMonth.value = cal
+    }
+
+    fun refreshPrediction() {
+        viewModelScope.launch { loadPrediction() }
     }
 }

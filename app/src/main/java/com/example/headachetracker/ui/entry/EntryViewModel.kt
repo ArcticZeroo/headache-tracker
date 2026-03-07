@@ -12,6 +12,8 @@ import com.example.headachetracker.data.location.GeocodingProvider
 import com.example.headachetracker.data.location.LocationProvider
 import com.example.headachetracker.data.repository.HeadacheRepository
 import com.example.headachetracker.data.weather.WeatherSyncWorker
+import com.example.headachetracker.data.ml.MIN_TRAINING_ENTRIES
+import com.example.headachetracker.data.ml.ModelTrainingWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,6 +115,18 @@ class EntryViewModel @Inject constructor(
                     .build()
                 WorkManager.getInstance(context).enqueue(syncRequest)
             }
+
+            // Retrain prediction model every 5 new entries once the threshold is met
+            val totalCount = repository.getEntryCount()
+            if (!state.isEditing && totalCount >= MIN_TRAINING_ENTRIES && totalCount % 5 == 0) {
+                val trainRequest = OneTimeWorkRequestBuilder<ModelTrainingWorker>().build()
+                WorkManager.getInstance(context).enqueueUniqueWork(
+                    ModelTrainingWorker.WORK_NAME,
+                    androidx.work.ExistingWorkPolicy.KEEP,
+                    trainRequest
+                )
+            }
+
             _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
         }
     }

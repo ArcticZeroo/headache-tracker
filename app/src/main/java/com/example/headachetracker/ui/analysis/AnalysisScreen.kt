@@ -42,6 +42,14 @@ fun AnalysisScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Prediction card
+        item {
+            PredictionCard(
+                predictionState = state.prediction,
+                onRefresh = { viewModel.refreshPrediction() }
+            )
+        }
+
         // Summary stats
         item {
             Row(
