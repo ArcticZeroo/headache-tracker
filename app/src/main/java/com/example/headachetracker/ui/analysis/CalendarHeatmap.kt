@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.headachetracker.data.local.HeadacheEntry
+import com.example.headachetracker.ui.components.ContentCard
 import com.example.headachetracker.ui.theme.painLevelColor
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -54,115 +55,106 @@ fun CalendarHeatmap(
     val isCurrentMonth = cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
             cal.get(Calendar.MONTH) == today.get(Calendar.MONTH)
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Month navigation header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { onNavigateMonth(false) }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Previous month"
-                    )
-                }
+    ContentCard(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface) {
+        MonthNavigationHeader(
+            monthText = monthFormat.format(cal.time),
+            onPrevious = { onNavigateMonth(false) },
+            onNext = { onNavigateMonth(true) }
+        )
+
+        // Day name headers
+        Row(modifier = Modifier.fillMaxWidth()) {
+            dayNames.forEach { day ->
                 Text(
-                    text = monthFormat.format(cal.time),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                IconButton(onClick = { onNavigateMonth(true) }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Next month"
-                    )
-                }
             }
+        }
 
-            // Day name headers
+        // Calendar grid
+        val totalCells = firstDayOfWeek + daysInMonth
+        val rows = (totalCells + 6) / 7
+
+        for (row in 0 until rows) {
             Row(modifier = Modifier.fillMaxWidth()) {
-                dayNames.forEach { day ->
-                    Text(
-                        text = day,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Calendar grid
-            val totalCells = firstDayOfWeek + daysInMonth
-            val rows = (totalCells + 6) / 7
-
-            for (row in 0 until rows) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    for (col in 0..6) {
-                        val cellIndex = row * 7 + col
-                        val day = cellIndex - firstDayOfWeek + 1
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .padding(2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (day in 1..daysInMonth) {
-                                val dayEntries = calendarData[day.toString()]
-                                val maxPain = dayEntries?.maxOfOrNull { it.painLevel }
-                                val isToday = isCurrentMonth &&
-                                        day == today.get(Calendar.DAY_OF_MONTH)
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .then(
-                                            if (maxPain != null) {
-                                                Modifier
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        painLevelColor(maxPain).copy(alpha = 0.7f)
-                                                    )
-                                            } else Modifier
-                                        )
-                                        .then(
-                                            if (isToday) {
-                                                Modifier.border(
-                                                    2.dp,
-                                                    MaterialTheme.colorScheme.primary,
-                                                    CircleShape
-                                                )
-                                            } else Modifier
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = day.toString(),
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isToday) FontWeight.Bold
-                                            else FontWeight.Normal,
-                                        color = if (maxPain != null) {
-                                            MaterialTheme.colorScheme.surface
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface
-                                        }
-                                    )
-                                }
-                            }
+                for (col in 0..6) {
+                    val cellIndex = row * 7 + col
+                    val day = cellIndex - firstDayOfWeek + 1
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                            .padding(2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (day in 1..daysInMonth) {
+                            val dayEntries = calendarData[day.toString()]
+                            val maxPain = dayEntries?.maxOfOrNull { it.painLevel }
+                            val isToday = isCurrentMonth &&
+                                    day == today.get(Calendar.DAY_OF_MONTH)
+                            CalendarCell(day = day, maxPain = maxPain, isToday = isToday)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MonthNavigationHeader(
+    monthText: String,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onPrevious) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
+        }
+        Text(
+            text = monthText,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        IconButton(onClick = onNext) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next month")
+        }
+    }
+}
+
+@Composable
+private fun CalendarCell(day: Int, maxPain: Int?, isToday: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .then(
+                if (maxPain != null) {
+                    Modifier
+                        .clip(CircleShape)
+                        .background(painLevelColor(maxPain).copy(alpha = 0.7f))
+                } else Modifier
+            )
+            .then(
+                if (isToday) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                } else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = day.toString(),
+            fontSize = 12.sp,
+            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+            color = if (maxPain != null) MaterialTheme.colorScheme.surface
+                    else MaterialTheme.colorScheme.onSurface
+        )
     }
 }

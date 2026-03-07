@@ -41,9 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.headachetracker.data.local.HeadacheEntry
 import com.example.headachetracker.ui.components.HeadacheEntryCard
 import com.example.headachetracker.ui.entry.EditEntryScreen
 
@@ -179,26 +181,10 @@ private fun EntryList(
                 items = group.entries,
                 key = { it.id }
             ) { entry ->
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = { dismissValue ->
-                        if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                            onDelete(entry)
-                            true
-                        } else false
-                    }
-                )
-
-                SwipeToDismissBox(
-                    state = dismissState,
-                    enableDismissFromStartToEnd = false,
-                    backgroundContent = {},
-                    content = {
-                        HeadacheEntryCard(
-                            entry = entry,
-                            onEdit = { onEdit(entry.id) },
-                            onDelete = { onDelete(entry) }
-                        )
-                    }
+                SwipeableEntryItem(
+                    entry = entry,
+                    onEdit = { onEdit(entry.id) },
+                    onDelete = { onDelete(entry) }
                 )
             }
         }
@@ -207,65 +193,67 @@ private fun EntryList(
 
 @Composable
 private fun DayContextRow(context: DayContext) {
-    val items = mutableListOf<@Composable () -> Unit>()
+    val hasSomething = context.highTemp != null || context.rainMm != null ||
+            context.steps != null || context.sleepHours != null
+    if (!hasSomething) return
 
-    if (context.highTemp != null && context.lowTemp != null) {
-        val highF = context.highTemp * 9.0 / 5.0 + 32.0
-        val lowF = context.lowTemp * 9.0 / 5.0 + 32.0
-        items.add {
-            Icon(Icons.Default.Thermostat, contentDescription = null, modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.width(2.dp))
-            Text("${lowF.toInt()}–${highF.toInt()}°F",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(
+        modifier = Modifier.padding(top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (context.highTemp != null && context.lowTemp != null) {
+            val highF = context.highTemp * 9.0 / 5.0 + 32.0
+            val lowF = context.lowTemp * 9.0 / 5.0 + 32.0
+            ContextItem(icon = Icons.Default.Thermostat, label = "${lowF.toInt()}–${highF.toInt()}°F")
+        }
+        if (context.rainMm != null && context.rainMm > 0) {
+            ContextItem(icon = Icons.Default.WaterDrop, label = "${String.format("%.1f", context.rainMm)}mm")
+        }
+        if (context.steps != null && context.steps > 0) {
+            ContextItem(icon = Icons.AutoMirrored.Filled.DirectionsWalk, label = "${String.format("%,d", context.steps)} steps")
+        }
+        if (context.sleepHours != null && context.sleepHours > 0) {
+            ContextItem(icon = Icons.Default.Bedtime, label = "${String.format("%.1f", context.sleepHours)}h sleep")
         }
     }
+}
 
-    if (context.rainMm != null && context.rainMm > 0) {
-        items.add {
-            Icon(Icons.Default.WaterDrop, contentDescription = null, modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.width(2.dp))
-            Text("${String.format("%.1f", context.rainMm)}mm",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+@Composable
+private fun ContextItem(icon: ImageVector, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.width(2.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
 
-    if (context.steps != null && context.steps > 0) {
-        items.add {
-            Icon(Icons.AutoMirrored.Filled.DirectionsWalk, contentDescription = null, modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.width(2.dp))
-            Text("${String.format("%,d", context.steps)} steps",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableEntryItem(
+    entry: HeadacheEntry,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { dismissValue ->
+            if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                onDelete()
+                true
+            } else false
         }
-    }
-
-    if (context.sleepHours != null && context.sleepHours > 0) {
-        items.add {
-            Icon(Icons.Default.Bedtime, contentDescription = null, modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.width(2.dp))
-            Text("${String.format("%.1f", context.sleepHours)}h sleep",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {},
+        content = {
+            HeadacheEntryCard(entry = entry, onEdit = onEdit, onDelete = onDelete)
         }
-    }
-
-    if (items.isNotEmpty()) {
-        Row(
-            modifier = Modifier.padding(top = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items.forEach { item ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    item()
-                }
-            }
-        }
-    }
+    )
 }

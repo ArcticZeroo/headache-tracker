@@ -29,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.headachetracker.ui.components.ContentCard
+import com.example.headachetracker.ui.theme.Dimensions
 
 @Composable
 fun AnalysisScreen(
@@ -51,74 +53,10 @@ fun AnalysisScreen(
         }
 
         // Summary stats
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                StatCard(
-                    title = "Entries",
-                    value = state.totalEntries.toString(),
-                    subtitle = "in ${state.selectedRange.label}",
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    title = "Avg Pain",
-                    value = if (state.totalEntries > 0) {
-                        String.format("%.1f", state.averagePain)
-                    } else "–",
-                    subtitle = "out of 5",
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    title = "Streak",
-                    value = state.daysSinceLastHeadache?.toString() ?: "–",
-                    subtitle = "days clear",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        item { StatsRow(state) }
 
-        // Time range selector
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                TimeRange.entries.forEach { range ->
-                    FilterChip(
-                        selected = state.selectedRange == range,
-                        onClick = { viewModel.setTimeRange(range) },
-                        label = { Text(range.label) }
-                    )
-                }
-            }
-        }
-
-        // Series tab selector
-        item {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(state.availableSeriesNames) { name ->
-                    FilterChip(
-                        selected = state.selectedSeriesName == name,
-                        onClick = { viewModel.selectSeries(name) },
-                        label = { Text(name) }
-                    )
-                }
-                if (state.isLoadingOverlays) {
-                    item {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .padding(4.dp),
-                            strokeWidth = 2.dp
-                        )
-                    }
-                }
-            }
-        }
+        // Time range + series selectors
+        item { SeriesTabSelector(state, viewModel) }
 
         // Chart for selected series
         val selectedSeries = state.allSeries[state.selectedSeriesName]
@@ -168,39 +106,81 @@ fun AnalysisScreen(
 }
 
 @Composable
+private fun StatsRow(state: AnalysisUiState) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        StatCard(
+            title = "Entries",
+            value = state.totalEntries.toString(),
+            subtitle = "in ${state.selectedRange.label}",
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            title = "Avg Pain",
+            value = if (state.totalEntries > 0) String.format("%.1f", state.averagePain) else "–",
+            subtitle = "out of 5",
+            modifier = Modifier.weight(1f)
+        )
+        StatCard(
+            title = "Streak",
+            value = state.daysSinceLastHeadache?.toString() ?: "–",
+            subtitle = "days clear",
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun SeriesTabSelector(state: AnalysisUiState, viewModel: AnalysisViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TimeRange.entries.forEach { range ->
+                FilterChip(
+                    selected = state.selectedRange == range,
+                    onClick = { viewModel.setTimeRange(range) },
+                    label = { Text(range.label) }
+                )
+            }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(state.availableSeriesNames) { name ->
+                FilterChip(
+                    selected = state.selectedSeriesName == name,
+                    onClick = { viewModel.selectSeries(name) },
+                    label = { Text(name) }
+                )
+            }
+            if (state.isLoadingOverlays) {
+                item {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp).padding(4.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun StatCard(
     title: String,
     value: String,
     subtitle: String,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    ContentCard(
         modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        shape = RoundedCornerShape(16.dp)
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        columnHorizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text(
-                text = value,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-            )
-        }
+        Text(text = title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        Text(text = value, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
     }
 }

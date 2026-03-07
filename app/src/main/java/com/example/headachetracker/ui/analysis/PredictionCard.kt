@@ -41,6 +41,9 @@ import com.example.headachetracker.data.local.DailyWeather
 import com.example.headachetracker.data.ml.MIN_TRAINING_ENTRIES
 import com.example.headachetracker.data.repository.DayPrediction
 import com.example.headachetracker.data.repository.ModelStatus
+import com.example.headachetracker.data.repository.PredictionResult
+import com.example.headachetracker.ui.components.ContentCard
+import com.example.headachetracker.ui.theme.Dimensions
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -52,133 +55,110 @@ fun PredictionCard(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Headache Forecast",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (predictionState is PredictionUiState.Ready || predictionState is PredictionUiState.Untrained) {
-                    IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh prediction",
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            when (predictionState) {
-                is PredictionUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
-                    }
-                }
-
-                is PredictionUiState.NotEnoughData -> {
-                    Text(
-                        text = "Need more data to make predictions",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { predictionState.entryCount.toFloat() / predictionState.threshold },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp)),
-                        strokeCap = StrokeCap.Round
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${predictionState.entryCount} / ${predictionState.threshold} entries logged",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                }
-
-                is PredictionUiState.Untrained -> {
-                    Text(
-                        text = "Model training in progress…",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Tap refresh after your next entry save.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                }
-
-                is PredictionUiState.Ready -> {
-                    val result = predictionState.result
-                    val hasPredictions = result.today != null || result.tomorrow != null
-
-                    if (!hasPredictions) {
-                        Text(
-                            text = "No location data available for forecast.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            result.today?.let { day ->
-                                DayPredictionColumn(
-                                    label = "Today",
-                                    prediction = day,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            result.tomorrow?.let { day ->
-                                DayPredictionColumn(
-                                    label = "Tomorrow",
-                                    prediction = day,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val trainedAgo = result.trainedAtMillis?.let { millis ->
-                        val days = ((System.currentTimeMillis() - millis) / 86_400_000L).toInt()
-                        when {
-                            days == 0 -> "today"
-                            days == 1 -> "1 day ago"
-                            else -> "$days days ago"
-                        }
-                    }
-                    Text(
-                        text = buildString {
-                            append("Based on ${result.trainingSampleCount} samples")
-                            if (trainedAgo != null) append(" · trained $trainedAgo")
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    ContentCard(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Headache Forecast",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (predictionState is PredictionUiState.Ready || predictionState is PredictionUiState.Untrained) {
+                IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Refresh prediction",
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(Dimensions.GapMedium))
+
+        when (predictionState) {
+            is PredictionUiState.Loading -> {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                }
+            }
+
+            is PredictionUiState.NotEnoughData -> {
+                Text(
+                    text = "Need more data to make predictions",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(Dimensions.GapSmall))
+                LinearProgressIndicator(
+                    progress = { predictionState.entryCount.toFloat() / predictionState.threshold },
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                    strokeCap = StrokeCap.Round
+                )
+                Spacer(modifier = Modifier.height(Dimensions.GapTight))
+                Text(
+                    text = "${predictionState.entryCount} / ${predictionState.threshold} entries logged",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+
+            is PredictionUiState.Untrained -> {
+                Text(
+                    text = "Model training in progress…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(Dimensions.GapTight))
+                Text(
+                    text = "Tap refresh after your next entry save.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+
+            is PredictionUiState.Ready -> PredictionReadyContent(predictionState.result)
+        }
     }
+}
+
+@Composable
+private fun PredictionReadyContent(result: PredictionResult) {
+    val hasPredictions = result.today != null || result.tomorrow != null
+
+    if (!hasPredictions) {
+        Text(
+            text = "No location data available for forecast.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            result.today?.let { day ->
+                DayPredictionColumn(label = "Today", prediction = day, modifier = Modifier.weight(1f))
+            }
+            result.tomorrow?.let { day ->
+                DayPredictionColumn(label = "Tomorrow", prediction = day, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(Dimensions.GapSmall))
+    Text(
+        text = buildString {
+            append("Based on ${result.trainingSampleCount} samples")
+            val trainedAgo = trainedAgoText(result.trainedAtMillis)
+            if (trainedAgo != null) append(" · trained $trainedAgo")
+        },
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    )
 }
 
 @Composable
@@ -203,10 +183,10 @@ private fun DayPredictionColumn(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(Dimensions.NestedCardCornerRadius)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(Dimensions.NestedCardCornerRadius),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -214,29 +194,14 @@ private fun DayPredictionColumn(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(
-                    progress = { 1f },
-                    modifier = Modifier.size(72.dp),
-                    color = trackColor,
-                    strokeWidth = 7.dp
-                )
-                CircularProgressIndicator(
-                    progress = { animatedProgress },
-                    modifier = Modifier.size(72.dp),
-                    color = indicatorColor,
-                    strokeWidth = 7.dp,
-                    strokeCap = StrokeCap.Round
-                )
-                Text(
-                    text = "$pct%",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = indicatorColor
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(Dimensions.GapSmall))
+            CircularProbabilityIndicator(
+                progress = animatedProgress,
+                percentage = pct,
+                color = indicatorColor,
+                trackColor = trackColor
+            )
+            Spacer(modifier = Modifier.height(Dimensions.GapSmall))
             Text(
                 text = probabilityLabel(prediction.probability),
                 style = MaterialTheme.typography.labelSmall,
@@ -244,7 +209,7 @@ private fun DayPredictionColumn(
                 fontWeight = FontWeight.Medium
             )
             prediction.forecastSummary?.let { weather ->
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(Dimensions.GapSmall))
                 WeatherSummaryRow(weather)
             }
         }
@@ -276,6 +241,46 @@ private fun WeatherSummaryRow(weather: DailyWeather) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
         )
+    }
+}
+
+@Composable
+private fun CircularProbabilityIndicator(
+    progress: Float,
+    percentage: Int,
+    color: Color,
+    trackColor: Color
+) {
+    Box(contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(
+            progress = { 1f },
+            modifier = Modifier.size(72.dp),
+            color = trackColor,
+            strokeWidth = 7.dp
+        )
+        CircularProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.size(72.dp),
+            color = color,
+            strokeWidth = 7.dp,
+            strokeCap = StrokeCap.Round
+        )
+        Text(
+            text = "$percentage%",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+    }
+}
+
+private fun trainedAgoText(trainedAtMillis: Long?): String? {
+    trainedAtMillis ?: return null
+    val days = ((System.currentTimeMillis() - trainedAtMillis) / 86_400_000L).toInt()
+    return when {
+        days == 0 -> "today"
+        days == 1 -> "1 day ago"
+        else -> "$days days ago"
     }
 }
 

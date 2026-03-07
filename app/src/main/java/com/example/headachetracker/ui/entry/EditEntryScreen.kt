@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.headachetracker.ui.components.PainLevelSelector
+import com.example.headachetracker.ui.theme.Dimensions
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -84,7 +85,7 @@ fun EditEntryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp),
+                .padding(Dimensions.ScreenContentPadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             PainLevelSelector(
@@ -149,67 +150,69 @@ fun EditEntryScreen(
         }
     }
 
+    EntryDateTimePickers(
+        timestamp = state.timestamp,
+        showDatePicker = showDatePicker,
+        showTimePicker = showTimePicker,
+        onTimestampChange = { viewModel.setTimestamp(it) },
+        onDismissDate = { showDatePicker = false },
+        onDismissTime = { showTimePicker = false }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EntryDateTimePickers(
+    timestamp: Long,
+    showDatePicker: Boolean,
+    showTimePicker: Boolean,
+    onTimestampChange: (Long) -> Unit,
+    onDismissDate: () -> Unit,
+    onDismissTime: () -> Unit
+) {
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = state.timestamp
-        )
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = timestamp)
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = onDismissDate,
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { selectedDate ->
-                        val cal = Calendar.getInstance().apply {
-                            timeInMillis = state.timestamp
-                        }
-                        val selectedCal = Calendar.getInstance().apply {
-                            timeInMillis = selectedDate
-                        }
+                        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
+                        val selectedCal = Calendar.getInstance().apply { timeInMillis = selectedDate }
                         cal.set(Calendar.YEAR, selectedCal.get(Calendar.YEAR))
                         cal.set(Calendar.MONTH, selectedCal.get(Calendar.MONTH))
                         cal.set(Calendar.DAY_OF_MONTH, selectedCal.get(Calendar.DAY_OF_MONTH))
-                        viewModel.setTimestamp(cal.timeInMillis)
+                        onTimestampChange(cal.timeInMillis)
                     }
-                    showDatePicker = false
-                }) {
-                    Text("OK")
-                }
+                    onDismissDate()
+                }) { Text("OK") }
             },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = { TextButton(onClick = onDismissDate) { Text("Cancel") } }
         ) {
             DatePicker(state = datePickerState)
         }
     }
 
     if (showTimePicker) {
-        val cal = Calendar.getInstance().apply { timeInMillis = state.timestamp }
+        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
         val timePickerState = rememberTimePickerState(
             initialHour = cal.get(Calendar.HOUR_OF_DAY),
             initialMinute = cal.get(Calendar.MINUTE)
         )
         DatePickerDialog(
-            onDismissRequest = { showTimePicker = false },
+            onDismissRequest = onDismissTime,
             confirmButton = {
                 TextButton(onClick = {
                     val newCal = Calendar.getInstance().apply {
-                        timeInMillis = state.timestamp
+                        timeInMillis = timestamp
                         set(Calendar.HOUR_OF_DAY, timePickerState.hour)
                         set(Calendar.MINUTE, timePickerState.minute)
                     }
-                    viewModel.setTimestamp(newCal.timeInMillis)
-                    showTimePicker = false
-                }) {
-                    Text("OK")
-                }
+                    onTimestampChange(newCal.timeInMillis)
+                    onDismissTime()
+                }) { Text("OK") }
             },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = { TextButton(onClick = onDismissTime) { Text("Cancel") } }
         ) {
             TimePicker(state = timePickerState)
         }
